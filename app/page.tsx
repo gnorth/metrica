@@ -483,8 +483,8 @@ export default function Home() {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
     const handleUpdate = () => {
-      if (sessionStorage.getItem('metrika-sw-refreshed') === 'v2') return;
-      sessionStorage.setItem('metrika-sw-refreshed', 'v2');
+      if (sessionStorage.getItem('metrika-sw-refreshed') === 'v3') return;
+      sessionStorage.setItem('metrika-sw-refreshed', 'v3');
       window.location.reload();
     };
     navigator.serviceWorker.addEventListener('controllerchange', handleUpdate);
