@@ -102,6 +102,10 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if ('serviceWorker' in navigator) void navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
     if (!timerRunning) return;
     const interval = window.setInterval(() => setTimerSeconds(value => value + 1), 1000);
     return () => window.clearInterval(interval);

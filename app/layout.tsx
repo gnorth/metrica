@@ -16,6 +16,11 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://metrika-private-tracker.gnorth-13.chatgpt.site'),
   title: 'Metrika Solo — приватний трекер сесій',
   description: 'Приватний solo-first трекер: сесії, таймер, категорії, цілі та персональні інсайти.',
+  manifest: '/manifest.webmanifest',
+  applicationName: 'Metrika',
+  themeColor: '#172723',
+  appleWebApp: { capable: true, title: 'Metrika', statusBarStyle: 'black-translucent' },
+  icons: { icon: '/app-icon.svg', apple: '/apple-touch-icon.png' },
   openGraph: {
     title: 'Metrika Solo — приватний трекер твоїх ритмів',
     description: 'Сесії, таймер, категорії, цілі та персональні інсайти — приватно.',
