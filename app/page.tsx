@@ -320,6 +320,7 @@ export default function Home() {
   const [view, setView] = useState<View>('today');
   const [previousView, setPreviousView] = useState<View>('today');
   const [statFocus, setStatFocus] = useState<StatFocus | null>(null);
+  const [categoryFocus, setCategoryFocus] = useState<string | null>(null);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [ready, setReady] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -841,7 +842,15 @@ export default function Home() {
   };
   const goBack = () => nav(previousView === view ? 'today' : previousView);
   const openStat = (metric: StatFocus) => {
+    setCategoryFocus(null);
     setStatFocus(metric);
+    setPreviousView(view);
+    setView('insights');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const openCategoryStat = (category: string) => {
+    setStatFocus(null);
+    setCategoryFocus(category);
     setPreviousView(view);
     setView('insights');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1192,6 +1201,7 @@ export default function Home() {
               openTimer={() => nav('timer')}
               openInsights={() => nav('insights')}
               openStat={openStat}
+              openCategoryStat={openCategoryStat}
               openSession={openSession}
               editEntry={editEntry}
               saved={saved}
@@ -1230,6 +1240,8 @@ export default function Home() {
               stats={stats}
               focus={statFocus}
               onFocus={setStatFocus}
+              categoryFocus={categoryFocus}
+              onCategoryFocus={setCategoryFocus}
             />
           )}
           {view === 'taxonomy' && (
@@ -1963,6 +1975,7 @@ function TodayView({
   openTimer,
   openInsights,
   openStat,
+  openCategoryStat,
   openSession,
   editEntry,
   saved,
@@ -1981,12 +1994,14 @@ function TodayView({
   openTimer: () => void;
   openInsights: () => void;
   openStat: (metric: StatFocus) => void;
+  openCategoryStat: (category: string) => void;
   openSession: (entry: Entry) => void;
   editEntry: (entry: Entry) => void;
   saved: boolean;
 }) {
   const recent = entries.slice(0, 3);
   const [coachHidden, setCoachHidden] = useState(false);
+  const [categoryRange, setCategoryRange] = useState<7 | 30>(30);
   const todayKey = new Date().toISOString().slice(0, 10);
   useEffect(() => setCoachHidden(localStorage.getItem('metrika-coach-hidden') === todayKey), [todayKey]);
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
@@ -2004,6 +2019,18 @@ function TodayView({
         ? { tone: 'pattern', icon: Zap, eyebrow: 'Помічено патерн', title: 'Edging — твоє друге ім’я?', text: `${edgingCount} із ${recentWindow.length} останніх сесій були про контроль і витримку.`, action: 'Розібрати патерн', onAction: openInsights }
         : { tone: 'steady', icon: Sparkles, eyebrow: 'Твій ритм сьогодні', title: todayCount ? 'Запис уже є — просто спостерігай.' : 'Сьогодні ще без записів.', text: todayCount ? 'Статистика оновлена. Жодних обов’язкових планів на решту дня.' : 'Записуй лише те, що справді сталося — без гонитви за серіями.', action: todayCount ? 'Подивитися статистику' : 'Додати запис', onAction: todayCount ? openInsights : openLog };
   const CoachIcon = coach.icon;
+  const categoryEntries = entries.filter(
+    (entry) => Date.now() - new Date(entry.createdAt).getTime() <= categoryRange * 86400000,
+  );
+  const categoryPalette = ['#ff6746', '#e0ef62', '#7558c9', '#f2ad31'];
+  const categoryCounts = Array.from(
+    categoryEntries.reduce((result, entry) => {
+      result.set(entry.type, (result.get(entry.type) ?? 0) + 1);
+      return result;
+    }, new Map<string, number>()),
+  ).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+  const visibleCategories = categoryCounts.slice(0, 3);
+  const hiddenCategoryCount = categoryCounts.slice(3).reduce((sum, item) => sum + item.count, 0);
   return (
     <>
       <section className="hero-grid">
@@ -2110,6 +2137,27 @@ function TodayView({
             Дивитися динаміку <ChevronRight />
           </span>
         </button>
+      </section>
+      <section className="category-distribution" aria-label="Розподіл сесій за категоріями">
+        <div className="category-distribution-head">
+          <div><span className="section-kicker">Твій стиль</span><h3>Розподіл за категоріями</h3></div>
+          <div className="category-range" aria-label="Період розподілу">
+            {([7, 30] as const).map((value) => <button key={value} className={categoryRange === value ? 'active' : ''} onClick={() => setCategoryRange(value)}>{value} днів</button>)}
+          </div>
+        </div>
+        {categoryEntries.length ? <>
+          <div className="category-segments" aria-hidden="true">
+            {visibleCategories.map((item, index) => <span key={item.name} style={{ width: `${(item.count / categoryEntries.length) * 100}%`, background: categoryPalette[index] }} />)}
+            {hiddenCategoryCount > 0 && <span style={{ width: `${(hiddenCategoryCount / categoryEntries.length) * 100}%`, background: '#cfd2ca' }} />}
+          </div>
+          <div className="category-list">
+            {visibleCategories.map((item, index) => {
+              const share = Math.round((item.count / categoryEntries.length) * 100);
+              return <button key={item.name} onClick={() => openCategoryStat(item.name)}><span className="category-color" style={{ background: categoryPalette[index] }} /><strong>{item.name}</strong><span>{share}%</span><em>{item.count} {item.count === 1 ? 'сесія' : 'сесії'}</em><ChevronRight /></button>;
+            })}
+          </div>
+          <div className="category-distribution-foot"><span>{categoryEntries.length < 5 ? `Поки лише ${categoryEntries.length} ${categoryEntries.length === 1 ? 'запис' : 'записи'} — розподіл ще може сильно змінитися.` : `На основі ${categoryEntries.length} записів за обраний період.`}</span><button onClick={openInsights}>Уся статистика <ChevronRight /></button></div>
+        </> : <div className="category-empty"><Sparkles /><div><strong>Ще немає даних за цей період</strong><span>Після першого запису тут з’явиться твій розподіл.</span></div><button onClick={openLog}>Додати запис</button></div>}
       </section>
       <section className="content-grid">
         <article className="timeline-card">
@@ -3694,6 +3742,8 @@ function InsightsView({
   stats,
   focus,
   onFocus,
+  categoryFocus,
+  onCategoryFocus,
 }: {
   entries: Entry[];
   stats: {
@@ -3705,15 +3755,18 @@ function InsightsView({
   };
   focus: StatFocus | null;
   onFocus: (focus: StatFocus | null) => void;
+  categoryFocus: string | null;
+  onCategoryFocus: (category: string | null) => void;
 }) {
   const [range, setRange] = useState(30);
   const [heatMetric, setHeatMetric] = useState<'count' | 'rating' | 'mood'>(
     'count',
   );
-  const scoped = entries.filter(
+  const periodEntries = entries.filter(
     (item) =>
       Date.now() - new Date(item.createdAt).getTime() <= range * 86400000,
   );
+  const scoped = categoryFocus ? periodEntries.filter((item) => item.type === categoryFocus) : periodEntries;
   const totalMinutes = scoped.reduce(
     (sum, item) => sum + (item.duration ?? 20),
     0,
@@ -4001,6 +4054,7 @@ function InsightsView({
           ))}
         </div>
       </section>
+      {categoryFocus && <section className="category-focus-banner" aria-live="polite"><div><span className="section-kicker">Активний фільтр</span><strong>Статистика категорії «{categoryFocus}»</strong><small>Усі показники нижче перераховано лише для цієї категорії.</small></div><button onClick={() => onCategoryFocus(null)}><X /> Показати всі категорії</button></section>}
       <section className="stats-kpis">
         <article>
           <span>
