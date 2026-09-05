@@ -201,3 +201,9 @@ button.stat-card{position:relative;display:block;width:100%;font-family:inherit;
 /* Keep the goal builder usable on shorter laptop displays. */
 .goal-dialog{max-height:calc(100dvh - 30px)!important;overflow-x:hidden!important;overflow-y:auto!important;overscroll-behavior:contain;scrollbar-gutter:stable}
 @media(min-width:681px){.goal-dialog .goal-dialog-actions{position:sticky;z-index:4;bottom:-25px;margin:4px -25px -25px;padding:14px 25px 25px;background:linear-gradient(180deg,#fffefa00,#fffefa 24%)}.goal-dialog>[data-slot=dialog-close]{position:sticky!important;z-index:6;top:0!important;float:right;margin:-13px -13px -44px 0;background:#fffefa!important;box-shadow:0 3px 12px #19242112}}
+
+/* Goals master-detail layout. */
+.goals-workspace{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(340px,.75fr);align-items:start;gap:18px}.goals-workspace:not(:has(.goal-detail)){grid-template-columns:1fr}.goals-workspace .goals-grid{min-width:0;grid-template-columns:repeat(2,minmax(0,1fr))}.goals-workspace .goal-detail{min-width:0;position:sticky;top:24px}.goals-workspace .goal-detail-head{flex-direction:column}.goals-workspace .goal-detail-head>div:last-child{width:100%;justify-content:space-between}.goals-workspace .goal-detail-kpis{grid-template-columns:1fr}.goals-workspace .goal-linked article{grid-template-columns:34px minmax(0,1fr) auto}.goals-workspace .goal-linked article small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:1100px){.goals-workspace{grid-template-columns:minmax(0,1fr) minmax(310px,.72fr)}.goals-workspace .goals-grid{grid-template-columns:1fr}}
+@media(max-width:820px){.goals-workspace,.goals-workspace:not(:has(.goal-detail)){grid-template-columns:1fr}.goals-workspace .goals-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.goals-workspace .goal-detail{position:static}}
+@media(max-width:600px){.goals-workspace .goals-grid{grid-template-columns:1fr}}
