@@ -4118,7 +4118,7 @@ function InsightsView({
           ))}
         </div>
       </section>
-      {categoryFocus && <section className="category-focus-banner" aria-live="polite"><div><span className="section-kicker">Активний фільтр</span><strong>Статистика категорії «{categoryFocus}»</strong><small>Усі показники нижче перераховано лише для цієї категорії.</small></div><button onClick={() => onCategoryFocus(null)}><X /> Показати всі категорії</button></section>}
+      {categoryFocus && <section className="category-focus-banner" aria-live="polite"><div><span>Фільтр</span><strong>{categoryFocus}</strong><small>{scoped.length} {scoped.length === 1 ? 'сесія' : 'сесій'} за {range} днів</small></div><button onClick={() => onCategoryFocus(null)}><X /><span>Скинути фільтр</span></button></section>}
       <section className="stats-kpis">
         <article>
           <span>
@@ -4134,9 +4134,8 @@ function InsightsView({
             Усього часу
           </span>
           <strong>
-            {Math.floor(totalMinutes / 60)}
-            <em>г</em> {totalMinutes % 60}
-            <em>хв</em>
+            {totalMinutes >= 60 && <>{Math.floor(totalMinutes / 60)}<em>&nbsp;г</em>{' '}</>}
+            {totalMinutes % 60}<em>&nbsp;хв</em>
           </strong>
           <small>сер. {avgDuration} хв / сесія</small>
         </article>
