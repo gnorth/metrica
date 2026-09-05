@@ -2076,22 +2076,50 @@ function TodayView({
   const latestStamp = entries.length ? Math.max(...entries.map(entry => new Date(entry.createdAt).getTime())) : Date.now();
   const daysSince = entries.length ? Math.max(0, Math.floor((todayStart.getTime() - latestStamp) / 86400000)) : 0;
   const recentWindow = orderedEntries.slice(0, 10);
-  const edgingCount = recentWindow.filter(entry => entry.type === 'Edging').length;
+  const categoryLeaders = Array.from(recentWindow.reduce((result, entry) => {
+    result.set(entry.type, (result.get(entry.type) ?? 0) + 1);
+    return result;
+  }, new Map<string, number>())).sort((a, b) => b[1] - a[1]);
+  const dominantCategory = categoryLeaders[0];
+  const currentWeekCount = entries.filter((entry) => {
+    const age = Date.now() - new Date(entry.createdAt).getTime();
+    return age >= 0 && age < 7 * 86400000;
+  }).length;
+  const previousWeekCount = entries.filter((entry) => {
+    const age = Date.now() - new Date(entry.createdAt).getTime();
+    return age >= 7 * 86400000 && age < 14 * 86400000;
+  }).length;
+  const recentThree = orderedEntries.slice(0, 3);
+  const previousThree = orderedEntries.slice(3, 6);
+  const average = (items: Entry[], getValue: (entry: Entry) => number) => items.length ? items.reduce((sum, entry) => sum + getValue(entry), 0) / items.length : 0;
+  const ratingShift = recentThree.length >= 3 && previousThree.length >= 3 ? average(recentThree, (entry) => entry.rating) - average(previousThree, (entry) => entry.rating) : 0;
+  const moodGain = recentWindow.length ? average(recentWindow, (entry) => entry.mood - (entry.moodBefore ?? entry.mood)) : 0;
+  const previousDurationAverage = orderedEntries.length > 1 ? average(orderedEntries.slice(1, 6), (entry) => entry.duration) : 0;
+  const durationSpike = orderedEntries[0] && previousDurationAverage > 0 ? orderedEntries[0].duration / previousDurationAverage : 0;
   const todaySessionWord = todayCount % 10 === 1 && todayCount % 100 !== 11 ? 'сесія' : [2, 3, 4].includes(todayCount % 10) && ![12, 13, 14].includes(todayCount % 100) ? 'сесії' : 'сесій';
   const primaryCoach = todayCount >= 3
     ? { tone: 'rest', icon: ShieldCheck, eyebrow: 'Висока активність сьогодні', title: `${todayCount} ${todaySessionWord} за день! Ого, дай тілу відпочити.`, text: 'Зроби паузу, випий води й перевір, чи немає подразнення або втоми. Наступна сесія нікуди не поспішає.', action: 'Подивитися день', onAction: openInsights, secondary: 'Вся історія', onSecondary: openInsights }
     : daysSince >= 6
       ? { tone: 'return', icon: Heart, eyebrow: 'Тривала пауза', title: `${daysSince} днів без жодної сесії. Хочеш зняти напругу?`, text: 'Якщо так — обери комфортний темп і не став собі цілей. Якщо бажання немає, нічого надолужувати не потрібно.', action: 'Запустити таймер', onAction: openTimer, secondary: 'Додати вручну', onSecondary: openLog }
-      : edgingCount >= 3 && edgingCount / Math.max(recentWindow.length, 1) >= .5
-        ? { tone: 'pattern', icon: Zap, eyebrow: 'Домінує одна категорія', title: 'Edging — твоє друге ім’я?', text: `${edgingCount} із ${recentWindow.length} останніх сесій були Edging. Перевір, як це впливає на тривалість, задоволення та настрій після.`, action: 'Розібрати патерн', onAction: openCategoryStat.bind(null, 'Edging'), secondary: 'Вся статистика', onSecondary: openInsights }
-        : { tone: 'steady', icon: Sparkles, eyebrow: 'Активність у нормальному ритмі', title: todayCount ? 'Сьогодні вже є запис.' : 'Яскравого сигналу поки немає.', text: todayCount ? 'Статистика оновлена. Продовжуй просто спостерігати за своїм ритмом.' : 'Порада з’явиться, коли записи покажуть помітний патерн — без випадкових припущень.', action: todayCount ? 'Подивитися статистику' : 'Додати запис', onAction: todayCount ? openInsights : openLog, secondary: todayCount ? 'Відкрити історію' : 'Live-таймер', onSecondary: todayCount ? openInsights : openTimer };
+      : currentWeekCount >= Math.max(4, previousWeekCount * 2)
+        ? { tone: 'rest', icon: Activity, eyebrow: 'Різкий ріст активності', title: `Цього тижня сесій значно більше: ${currentWeekCount} проти ${previousWeekCount}.`, text: 'Перевір самопочуття: якщо це спосіб упоратися зі стресом або нудьгою, коротка пауза чи прогулянка можуть дати більше ясності.', action: 'Подивитися динаміку', onAction: () => openStat('sessions'), secondary: 'Вся статистика', onSecondary: openInsights }
+        : dominantCategory && dominantCategory[1] >= 3 && dominantCategory[1] / Math.max(recentWindow.length, 1) >= .5
+          ? { tone: 'pattern', icon: Zap, eyebrow: 'Домінує одна категорія', title: `${dominantCategory[0]} — твій головний сценарій?`, text: `${dominantCategory[1]} із ${recentWindow.length} останніх сесій належать до цієї категорії. Перевір її зв’язок із тривалістю, задоволенням і настроєм.`, action: 'Розібрати патерн', onAction: () => openCategoryStat(dominantCategory[0]), secondary: 'Вся статистика', onSecondary: openInsights }
+          : { tone: 'steady', icon: Sparkles, eyebrow: 'Фокус на відчуттях', title: todayCount ? 'Сьогодні вже є запис — прислухайся до тіла.' : 'Обери те, після чого тобі справді краще.', text: todayCount ? 'Не потрібно покращувати цифри. Відпочинок, комфорт і відсутність подразнення — теж хороший результат.' : 'Якщо захочеться часу для себе, почни без поспіху й зверни увагу на настрій до та після.', action: todayCount ? 'Подивитися баланс' : 'Live-таймер', onAction: todayCount ? openInsights : openTimer, secondary: todayCount ? 'Відкрити історію' : 'Додати вручну', onSecondary: todayCount ? openInsights : openLog };
   const bestRecent = recentWindow.find((entry) => entry.rating >= 5);
-  const moodGain = recentWindow.length ? recentWindow.reduce((sum, entry) => sum + (entry.mood - (entry.moodBefore ?? entry.mood)), 0) / recentWindow.length : 0;
-  const contextualCoach = bestRecent
-    ? { tone: 'quality', icon: Star, eyebrow: 'Підтверджено записом', title: 'Що спрацювало найкраще?', text: `Сесія «${bestRecent.type}» отримала 5/5. Переглянь її контекст: місце, теги й настрій можуть пояснити, що допомогло.`, action: 'Відкрити сесію', onAction: () => openSession(bestRecent), secondary: 'Статистика оцінок', onSecondary: () => openStat('rating') }
-    : moodGain >= 1
+  const contextualCoach = ratingShift <= -.8
+    ? { tone: 'rest', icon: ShieldCheck, eyebrow: 'Задоволення знизилось', title: `Останні оцінки впали на ${Math.abs(ratingShift).toFixed(1)} бала.`, text: 'Не намагайся компенсувати це частотою. Спробуй змінити темп, прибрати відволікання або дати собі паузу.', action: 'Статистика оцінок', onAction: () => openStat('rating'), secondary: 'Подивитися баланс', onSecondary: openInsights }
+    : ratingShift >= .8
+      ? { tone: 'quality', icon: Star, eyebrow: 'Позитивний зсув', title: `Задоволення зросло на ${ratingShift.toFixed(1)} бала.`, text: 'Подивись, що змінилося в останніх сесіях: категорія, місце, тривалість або відсутність екранів можуть бути підказкою.', action: 'Дослідити зміни', onAction: () => openStat('rating'), secondary: 'Вся статистика', onSecondary: openInsights }
+      : moodGain <= -.5
+        ? { tone: 'rest', icon: Heart, eyebrow: 'Настрій після погіршується', title: 'Останнім часом сесії не дають полегшення', text: 'Спробуй зробити паузу й перевірити, що тобі насправді потрібно зараз: сон, рух, спілкування чи зниження стресу.', action: 'Подивитися баланс', onAction: openInsights, secondary: 'Вся статистика', onSecondary: openInsights }
+        : moodGain >= 1
       ? { tone: 'quality', icon: Heart, eyebrow: 'Помітна зміна настрою', title: 'Після сесій тобі зазвичай легше', text: `За останні ${recentWindow.length} записів настрій зростав у середньому на ${moodGain.toFixed(1)} бала. Подивись, які умови повторюються.`, action: 'Подивитися баланс', onAction: openInsights, secondary: 'Вся статистика', onSecondary: openInsights }
-      : { tone: 'quality', icon: ShieldCheck, eyebrow: 'Недостатньо даних', title: 'Ще рано робити другий висновок', text: 'Додай кілька чесних записів із настроєм до та після — і тут з’явиться порада на основі твого патерну.', action: 'Додати запис', onAction: openLog, secondary: 'Як це працює', onSecondary: openInsights };
+          : durationSpike >= 1.6
+            ? { tone: 'pattern', icon: Timer, eyebrow: 'Стрибок тривалості', title: `Остання сесія тривала ${orderedEntries[0].duration} хв — помітно довше звичного.`, text: 'Згадай, чи довший час справді покращив досвід. Якщо ні — комфорт важливіший за тривалість.', action: 'Динаміка часу', onAction: () => openStat('duration'), secondary: 'Відкрити сесію', onSecondary: () => openSession(orderedEntries[0]) }
+            : bestRecent
+              ? { tone: 'quality', icon: Star, eyebrow: 'Вдалий досвід', title: 'Відтвори умови, а не цифру', text: `Сесія «${bestRecent.type}» отримала 5/5. Зверни увагу на її контекст і настрій — це корисніше, ніж намагатися повторити результат силоміць.`, action: 'Відкрити сесію', onAction: () => openSession(bestRecent), secondary: 'Статистика оцінок', onSecondary: () => openStat('rating') }
+              : { tone: 'quality', icon: Heart, eyebrow: 'М’який орієнтир', title: 'Комфорт — теж прогрес', text: 'Сьогодні спробуй прибрати поспіх і відволікання. Зупинися, якщо тілу некомфортно, навіть якщо планував інакше.', action: 'Запустити таймер', onAction: openTimer, secondary: 'Додати запис', onSecondary: openLog };
   const coaches = [primaryCoach, contextualCoach];
   const coach = coaches[coachIndex % coaches.length];
   const CoachIcon = coach.icon;
