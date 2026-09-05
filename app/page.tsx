@@ -102,11 +102,6 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => { if (event.key.toLowerCase() === 'n' && !dialogOpen && !(event.target instanceof HTMLInputElement) && !(event.target instanceof HTMLTextAreaElement)) setDialogOpen(true); };
-    window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey);
-  }, [dialogOpen]);
-
-  useEffect(() => {
     if (!timerRunning) return;
     const interval = window.setInterval(() => setTimerSeconds(value => value + 1), 1000);
     return () => window.clearInterval(interval);
@@ -226,7 +221,6 @@ export default function Home() {
             <button className="details-toggle" onClick={() => setDetails(value => !value)}>{details ? <ChevronLeft /> : <Plus />}{details ? 'Сховати деталі' : 'Додати контекст'}<span>необов’язково</span></button>
             {details && <div className="optional-details"><AttributePicker label="Теги" icon={Tag} options={[...tagOptions,...taxonomy.tags]} custom={taxonomy.tags} selected={tags} onToggle={value=>setTags(current=>current.includes(value)?current.filter(item=>item!==value):[...current,value])} onAdd={value=>updateTaxonomy('tags',[...taxonomy.tags,value])} onRename={(oldValue,newValue)=>{updateTaxonomy('tags',taxonomy.tags.map(item=>item===oldValue?newValue:item));setTags(current=>current.map(item=>item===oldValue?newValue:item))}} onRemove={value=>{updateTaxonomy('tags',taxonomy.tags.filter(item=>item!==value));setTags(current=>current.filter(item=>item!==value))}} /><AttributePicker label="Місця" icon={MapPin} hint="конкретне місце" options={[...placeOptions,...taxonomy.places]} custom={taxonomy.places} selected={places} onToggle={value=>setPlaces(current=>current.includes(value)?current.filter(item=>item!==value):[...current,value])} onAdd={value=>updateTaxonomy('places',[...taxonomy.places,value])} onRename={(a,b)=>{updateTaxonomy('places',taxonomy.places.map(x=>x===a?b:x));setPlaces(x=>x.map(v=>v===a?b:v))}} onRemove={value=>{updateTaxonomy('places',taxonomy.places.filter(x=>x!==value));setPlaces(x=>x.filter(v=>v!==value))}} /><AttributePicker label="Пози" icon={PersonStanding} options={[...positionOptions,...taxonomy.positions]} custom={taxonomy.positions} selected={positions} onToggle={value=>setPositions(current=>current.includes(value)?current.filter(item=>item!==value):[...current,value])} onAdd={value=>updateTaxonomy('positions',[...taxonomy.positions,value])} onRename={(a,b)=>{updateTaxonomy('positions',taxonomy.positions.map(x=>x===a?b:x));setPositions(x=>x.map(v=>v===a?b:v))}} onRemove={value=>{updateTaxonomy('positions',taxonomy.positions.filter(x=>x!==value));setPositions(x=>x.filter(v=>v!==value))}} /><AttributePicker label="Локації" icon={LocateFixed} hint="загальний контекст" options={[...locationOptions,...taxonomy.locations]} custom={taxonomy.locations} selected={locations} onToggle={value=>setLocations(current=>current.includes(value)?current.filter(item=>item!==value):[...current,value])} onAdd={value=>updateTaxonomy('locations',[...taxonomy.locations,value])} onRename={(a,b)=>{updateTaxonomy('locations',taxonomy.locations.map(x=>x===a?b:x));setLocations(x=>x.map(v=>v===a?b:v))}} onRemove={value=>{updateTaxonomy('locations',taxonomy.locations.filter(x=>x!==value));setLocations(x=>x.filter(v=>v!==value))}} /><div className="field-block"><label htmlFor="entry-note">Приватна нотатка</label><Textarea id="entry-note" value={note} onChange={event => setNote(event.target.value)} placeholder="Що варто запам’ятати?" maxLength={300} /></div></div>}
             <Button className="save-button" size="lg" onClick={() => saveEntry()}>{editingId ? <Check /> : <LockKeyhole />} {editingId ? 'Зберегти зміни' : 'Зберегти приватно'}</Button>
-            <p className="keyboard-hint"><span>N</span> відкриває новий запис із будь-якого екрана</p>
           </div>
         </DialogContent>
       </Dialog>
