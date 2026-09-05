@@ -100,6 +100,7 @@ type Entry = {
   places?: string[];
   positions?: string[];
   locations?: string[];
+  moods?: string[];
   createdAt: string;
 };
 type GoalMetric = 'sessions' | 'minutes' | 'rating';
@@ -129,6 +130,7 @@ type Taxonomy = {
   places: string[];
   positions: string[];
   locations: string[];
+  moods: string[];
 };
 type TaxonomyGroup = keyof Taxonomy;
 declare global {
@@ -159,12 +161,14 @@ const defaultTagOptions = [
 const defaultPlaceOptions = ['Ліжко', 'Душ', 'Диван', 'Крісло'];
 const defaultPositionOptions = ['Лежачи', 'Сидячи', 'Стоячи', 'На боці'];
 const defaultLocationOptions = ['Вдома', 'Готель', 'У подорожі', 'На природі'];
+const defaultMoodOptions = ['🔥 Збуджений', '😌 Розслаблений', '🤯 Стрес / напруга', '🥱 Від нудьги', '⚡ Бадьорий'];
 const emptyTaxonomy: Taxonomy = {
   categories: [],
   tags: [],
   places: [],
   positions: [],
   locations: [],
+  moods: [],
 };
 const baseTaxonomy: Taxonomy = {
   categories: typeOptions.map((item) => item.id),
@@ -172,6 +176,7 @@ const baseTaxonomy: Taxonomy = {
   places: defaultPlaceOptions,
   positions: defaultPositionOptions,
   locations: defaultLocationOptions,
+  moods: defaultMoodOptions,
 };
 const normalizeGoal = (
   goal: Partial<Goal> &
@@ -197,6 +202,7 @@ function demoEntries(): Entry[] {
       time: '21:40',
       note: 'Швидкий заряд бадьорості.',
       tags: ['Перед сном'],
+      moods: ['⚡ Бадьорий'],
       createdAt: new Date(now - 86400000).toISOString(),
     },
     {
@@ -210,6 +216,7 @@ function demoEntries(): Entry[] {
       time: '22:15',
       note: 'Фокус на витримці та контролі.',
       tags: ['Зняти стрес'],
+      moods: ['😌 Розслаблений'],
       createdAt: new Date(now - 3 * 86400000).toISOString(),
     },
     {
@@ -223,6 +230,7 @@ function demoEntries(): Entry[] {
       time: '19:20',
       note: '',
       tags: ['Фантазія'],
+      moods: ['🔥 Збуджений'],
       createdAt: new Date(now - 5 * 86400000).toISOString(),
     },
     {
@@ -236,54 +244,55 @@ function demoEntries(): Entry[] {
       time: '23:05',
       note: '',
       tags: ['Без екранів'],
+      moods: ['😌 Розслаблений'],
       createdAt: new Date(now - 7 * 86400000).toISOString(),
     },
     {
       id: 'demo-5', type: 'Звичайна', moodBefore: 4, mood: 7, duration: 18,
       rating: 3, orgasms: 1, time: '07:35', note: 'Спокійний початок дня.',
-      tags: ['Без екранів'], places: ['Ліжко'], positions: ['Лежачи'], locations: ['Вдома'],
+      tags: ['Без екранів'], places: ['Ліжко'], positions: ['Лежачи'], locations: ['Вдома'], moods: ['⚡ Бадьорий'],
       createdAt: new Date(now - 2 * 86400000).toISOString(),
     },
     {
       id: 'demo-6', type: 'Чуттєва', moodBefore: 5, mood: 9, duration: 42,
       rating: 5, orgasms: 2, time: '20:10', note: 'Без поспіху, з увагою до відчуттів.',
-      tags: ['Без екранів', 'Перед сном'], places: ['Душ'], positions: ['Стоячи'], locations: ['Вдома'],
+      tags: ['Без екранів', 'Перед сном'], places: ['Душ'], positions: ['Стоячи'], locations: ['Вдома'], moods: ['😌 Розслаблений'],
       createdAt: new Date(now - 4 * 86400000).toISOString(),
     },
     {
       id: 'demo-7', type: 'Швидка', moodBefore: 7, mood: 8, duration: 7,
       rating: 4, orgasms: 1, time: '13:05', note: '', tags: ['Зняти стрес'],
-      places: ['Крісло'], positions: ['Сидячи'], locations: ['Вдома'],
+      places: ['Крісло'], positions: ['Сидячи'], locations: ['Вдома'], moods: ['🤯 Стрес / напруга'],
       createdAt: new Date(now - 6 * 86400000).toISOString(),
     },
     {
       id: 'demo-8', type: 'Edging', moodBefore: 6, mood: 8, duration: 51,
       rating: 4, orgasms: 1, time: '22:30', note: 'Довша практика контролю.',
-      tags: ['Фантазія'], places: ['Ліжко'], positions: ['На боці'], locations: ['Вдома'],
+      tags: ['Фантазія'], places: ['Ліжко'], positions: ['На боці'], locations: ['Вдома'], moods: ['🔥 Збуджений'],
       createdAt: new Date(now - 10 * 86400000).toISOString(),
     },
     {
       id: 'demo-9', type: 'Звичайна', moodBefore: 3, mood: 7, duration: 25,
       rating: 4, orgasms: 1, time: '18:45', note: 'Допомогло перемкнутися після насиченого дня.',
-      tags: ['Зняти стрес'], places: ['Диван'], positions: ['Лежачи'], locations: ['Вдома'],
+      tags: ['Зняти стрес'], places: ['Диван'], positions: ['Лежачи'], locations: ['Вдома'], moods: ['🤯 Стрес / напруга'],
       createdAt: new Date(now - 14 * 86400000).toISOString(),
     },
     {
       id: 'demo-10', type: 'Чуттєва', moodBefore: 8, mood: 9, duration: 33,
       rating: 5, orgasms: 1, time: '23:20', note: '', tags: ['Іграшка', 'Перед сном'],
-      places: ['Ліжко'], positions: ['На боці'], locations: ['Готель'],
+      places: ['Ліжко'], positions: ['На боці'], locations: ['Готель'], moods: ['😌 Розслаблений'],
       createdAt: new Date(now - 18 * 86400000).toISOString(),
     },
     {
       id: 'demo-11', type: 'Швидка', moodBefore: 5, mood: 6, duration: 9,
       rating: 3, orgasms: 1, time: '11:50', note: '', tags: ['У душі'],
-      places: ['Душ'], positions: ['Стоячи'], locations: ['Вдома'],
+      places: ['Душ'], positions: ['Стоячи'], locations: ['Вдома'], moods: ['🥱 Від нудьги'],
       createdAt: new Date(now - 22 * 86400000).toISOString(),
     },
     {
       id: 'demo-12', type: 'Edging', moodBefore: 4, mood: 9, duration: 46,
       rating: 5, orgasms: 2, time: '21:15', note: 'Хороший баланс темпу та контролю.',
-      tags: ['Без екранів', 'Фантазія'], places: ['Ліжко'], positions: ['Сидячи'], locations: ['Вдома'],
+      tags: ['Без екранів', 'Фантазія'], places: ['Ліжко'], positions: ['Сидячи'], locations: ['Вдома'], moods: ['🔥 Збуджений'],
       createdAt: new Date(now - 27 * 86400000).toISOString(),
     },
   ];
@@ -384,6 +393,7 @@ export default function Home() {
   const [places, setPlaces] = useState<string[]>([]);
   const [positions, setPositions] = useState<string[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
+  const [moods, setMoods] = useState<string[]>([]);
   const [taxonomy, setTaxonomy] = useState<Taxonomy>(emptyTaxonomy);
   const [archivedTaxonomy, setArchivedTaxonomy] =
     useState<Taxonomy>(emptyTaxonomy);
@@ -440,18 +450,24 @@ export default function Home() {
     if (stored) {
       const current = JSON.parse(stored) as Entry[];
       const shouldExpandDemo = current.some((entry) => entry.id.startsWith('demo-')) &&
-        localStorage.getItem('metrika-demo-set') !== 'expanded-v1';
+        localStorage.getItem('metrika-demo-set') !== 'expanded-v2-moods';
       const next = shouldExpandDemo
-        ? [...current, ...demos.filter((demo) => !current.some((entry) => entry.id === demo.id))]
+        ? [
+            ...current.map((entry) => {
+              const demo = demos.find((item) => item.id === entry.id);
+              return demo ? { ...demo, ...entry, moods: entry.moods ?? demo.moods } : entry;
+            }),
+            ...demos.filter((demo) => !current.some((entry) => entry.id === demo.id)),
+          ]
         : current;
       if (shouldExpandDemo) {
         localStorage.setItem('metrika-entries', JSON.stringify(next));
-        localStorage.setItem('metrika-demo-set', 'expanded-v1');
+        localStorage.setItem('metrika-demo-set', 'expanded-v2-moods');
       }
       setEntries(next);
     } else {
       setEntries(demos);
-      localStorage.setItem('metrika-demo-set', 'expanded-v1');
+      localStorage.setItem('metrika-demo-set', 'expanded-v2-moods');
     }
     setShowDemoNote(localStorage.getItem('metrika-demo-note') !== 'hidden');
     const storedGoals = localStorage.getItem('metrika-goals');
@@ -556,6 +572,7 @@ export default function Home() {
                   places,
                   positions,
                   locations,
+                  moods,
                 }
               : item,
           );
@@ -580,6 +597,7 @@ export default function Home() {
           places,
           positions,
           locations,
+          moods,
         };
       }
       const record: Entry = {
@@ -595,6 +613,7 @@ export default function Home() {
         places,
         positions,
         locations,
+        moods,
         time: new Intl.DateTimeFormat('uk-UA', {
           hour: '2-digit',
           minute: '2-digit',
@@ -617,6 +636,7 @@ export default function Home() {
       setPlaces([]);
       setPositions([]);
       setLocations([]);
+      setMoods([]);
       setDetails(false);
       window.setTimeout(() => setSaved(false), 4000);
       return record;
@@ -626,6 +646,7 @@ export default function Home() {
       editingId,
       entries,
       locations,
+      moods,
       mood,
       moodBefore,
       note,
@@ -640,8 +661,8 @@ export default function Home() {
 
   const openNewEntry = () => {
     setEditingId(null);
-    setMoodBefore(6);
-    setMood(8);
+    setMoodBefore(5);
+    setMood(5);
     setType('Звичайна');
     setDuration(20);
     setRating(4);
@@ -650,6 +671,7 @@ export default function Home() {
     setPlaces([]);
     setPositions([]);
     setLocations([]);
+    setMoods([]);
     setNote('');
     setDetails(false);
     setDialogOpen(true);
@@ -666,6 +688,7 @@ export default function Home() {
     setPlaces(entry.places ?? []);
     setPositions(entry.positions ?? []);
     setLocations(entry.locations ?? []);
+    setMoods(entry.moods ?? []);
     setNote(entry.note);
     setDetails(
       Boolean(
@@ -673,7 +696,8 @@ export default function Home() {
         entry.tags.length ||
         entry.places?.length ||
         entry.positions?.length ||
-        entry.locations?.length,
+        entry.locations?.length ||
+        entry.moods?.length,
       ),
     );
     setDialogOpen(true);
@@ -1217,7 +1241,7 @@ export default function Home() {
                           : view === 'session'
                             ? 'Сесія'
                             : view === 'taxonomy'
-                              ? 'Твій словник'
+                              ? 'Параметри сесії'
                               : view === 'data'
                                 ? 'Захист даних'
                                 : 'Статистика'}{' '}
@@ -1234,8 +1258,8 @@ export default function Home() {
               </div>
               <button
                 className={`avatar ${view === 'taxonomy' ? 'active' : ''}`}
-                aria-label="Керувати словником"
-                title="Словник"
+                aria-label="Налаштувати параметри сесії"
+                title="Параметри сесії"
                 onClick={() => nav('taxonomy')}
               >
                 <CircleUserRound />
@@ -1533,64 +1557,30 @@ export default function Home() {
                 ))}
               </div>
             </div>
-            <div className="field-block mood-block mood-before">
-              <div className="mood-label">
-                <div>
-                  <label>Як ти почувався до?</label>
-                  <span>
-                    {moodBefore <= 4
-                      ? 'Напружено'
-                      : moodBefore <= 7
-                        ? 'Нормально'
-                        : 'Добре'}
-                  </span>
-                </div>
-                <strong>
-                  {moodBefore}
-                  <small>/10</small>
-                </strong>
-              </div>
-              <Slider
-                value={[moodBefore]}
-                min={1}
-                max={10}
-                step={1}
-                onValueChange={(value) =>
-                  setMoodBefore(Array.isArray(value) ? value[0] : value)
-                }
-              />
-              <div className="scale-labels">
-                <span>важко</span>
-                <span>супер</span>
-              </div>
-            </div>
-            <div className="field-block mood-block">
-              <div className="mood-label">
-                <div>
-                  <label>Як ти почуваєшся після?</label>
-                  <span>
-                    {mood <= 4 ? 'Не дуже' : mood <= 7 ? 'Нормально' : 'Чудово'}
-                  </span>
-                </div>
-                <strong>
-                  {mood}
-                  <small>/10</small>
-                </strong>
-              </div>
-              <Slider
-                value={[mood]}
-                min={1}
-                max={10}
-                step={1}
-                onValueChange={(value) =>
-                  setMood(Array.isArray(value) ? value[0] : value)
-                }
-              />
-              <div className="scale-labels">
-                <span>важко</span>
-                <span>супер</span>
-              </div>
-            </div>
+            <AttributePicker
+              label="Настрій"
+              hint="обери один стан"
+              icon={Heart}
+              options={[...defaultMoodOptions, ...taxonomy.moods]}
+              custom={taxonomy.moods}
+              selected={moods}
+              onToggle={(value) =>
+                setMoods((current) => current.includes(value) ? [] : [value])
+              }
+              onAdd={(value) =>
+                updateTaxonomy('moods', [...taxonomy.moods, value])
+              }
+              onRename={(oldValue, newValue) => {
+                replaceTaxonomyValue('moods', oldValue, newValue);
+                setMoods((current) =>
+                  current.map((item) => item === oldValue ? newValue : item),
+                );
+              }}
+              onRemove={(value) => {
+                archiveTaxonomyValue('moods', value);
+                setMoods((current) => current.filter((item) => item !== value));
+              }}
+            />
             <button
               className="details-toggle"
               onClick={() => setDetails((value) => !value)}
@@ -2516,17 +2506,17 @@ function HistoryView({
   const [menu, setMenu] = useState<string | null>(null);
   const filters = [
     { label: 'Усі', value: 'Усі' },
-    { label: 'Edging', value: 'Edging' },
-    { label: 'Швидкі', value: 'Швидка' },
-    { label: 'Чуттєві', value: 'Чуттєва' },
-    { label: 'Звичайні', value: 'Звичайна' },
+    ...[...new Set(entries.map((entry) => entry.type))].map((value) => ({
+      label: value,
+      value,
+    })),
   ];
   const normalizedQuery = query.trim().toLocaleLowerCase('uk-UA');
   const filtered = entries.filter(
     (entry) =>
       (filter === 'Усі' || entry.type === filter) &&
       (!normalizedQuery ||
-        `${entry.type} ${entry.note} ${entry.tags.join(' ')}`
+        `${entry.type} ${entry.note} ${entry.tags.join(' ')} ${(entry.moods ?? []).join(' ')} ${(entry.places ?? []).join(' ')} ${(entry.locations ?? []).join(' ')} ${(entry.positions ?? []).join(' ')}`
           .toLocaleLowerCase('uk-UA')
           .includes(normalizedQuery)),
   );
@@ -2730,8 +2720,7 @@ function DataView({
       'Категорія',
       'Тривалість',
       'Оцінка',
-      'Настрій до',
-      'Настрій після',
+      'Настрій',
       'Оргазми',
       'Теги',
       'Місця',
@@ -2747,8 +2736,7 @@ function DataView({
         item.type,
         item.duration,
         item.rating,
-        item.moodBefore ?? '',
-        item.mood,
+        (item.moods ?? []).join('; '),
         item.orgasms,
         item.tags.join('; '),
         (item.places ?? []).join('; '),
@@ -2813,8 +2801,9 @@ function DataView({
           type: column(values, 'Категорія'),
           duration: number('Тривалість', 20),
           rating: number('Оцінка', 4),
-          moodBefore: number('Настрій до', 5),
-          mood: number('Настрій після', 5),
+          moodBefore: 5,
+          mood: 5,
+          moods: splitList(column(values, 'Настрій')),
           orgasms: Number(column(values, 'Оргазми')) || 0,
           tags: splitList(column(values, 'Теги')),
           places: splitList(column(values, 'Місця')),
@@ -3008,19 +2997,25 @@ function TaxonomyView({
       hint: 'Основний тип сесії',
       icon: Sparkles,
     },
+    {
+      id: 'moods',
+      label: 'Настрій',
+      hint: 'Словесний опис стану',
+      icon: Heart,
+    },
     { id: 'tags', label: 'Теги', hint: 'Контекст і наміри', icon: Tag },
     { id: 'places', label: 'Місця', hint: 'Конкретне місце', icon: MapPin },
-    {
-      id: 'positions',
-      label: 'Пози',
-      hint: 'Положення тіла',
-      icon: PersonStanding,
-    },
     {
       id: 'locations',
       label: 'Локації',
       hint: 'Загальне оточення',
       icon: LocateFixed,
+    },
+    {
+      id: 'positions',
+      label: 'Пози',
+      hint: 'Положення тіла',
+      icon: PersonStanding,
     },
   ];
   const [group, setGroup] = useState<TaxonomyGroup>('categories');
@@ -3057,10 +3052,10 @@ function TaxonomyView({
       <div className="taxonomy-intro">
         <div>
           <span className="section-kicker">Порядок без зайвих зусиль</span>
-          <h2>Усе, чим ти описуєш сесії</h2>
+          <h2>Конструктор сесії</h2>
           <p>
-            Редагуй назви, об’єднуй дублікати й прибирай непотрібне. Старі
-            записи залишаться цілими.
+            Налаштуй категорії, настрій і контекст один раз — ці значення
+            використовуватимуться у нових записах, деталях і статистиці.
           </p>
         </div>
         <div className="taxonomy-total">
@@ -3303,6 +3298,7 @@ function SessionView({
   onDelete: (entry: Entry) => void;
 }) {
   const groups = [
+    { label: 'Настрій', icon: Heart, values: entry.moods ?? [] },
     { label: 'Теги', icon: Tag, values: entry.tags },
     { label: 'Місця', icon: MapPin, values: entry.places ?? [] },
     { label: 'Пози', icon: PersonStanding, values: entry.positions ?? [] },
@@ -3358,9 +3354,9 @@ function SessionView({
           <strong>{entry.rating}/5</strong>
         </article>
         <article>
-          <Activity />
-          <span>Настрій після</span>
-          <strong>{entry.mood}/10</strong>
+          <Heart />
+          <span>Настрій</span>
+          <strong>{entry.moods?.[0] ?? 'Не вказано'}</strong>
         </article>
         <article>
           <Zap />
@@ -3936,7 +3932,7 @@ function InsightsView({
   onCategoryFocus: (category: string | null) => void;
 }) {
   const [range, setRange] = useState(30);
-  const [heatMetric, setHeatMetric] = useState<'count' | 'rating' | 'mood'>(
+  const [heatMetric, setHeatMetric] = useState<'count' | 'rating'>(
     'count',
   );
   const periodEntries = entries.filter(
@@ -4070,6 +4066,7 @@ function InsightsView({
       .slice(0, 5);
   };
   const contextGroups = [
+    { label: 'Настрій', title: 'Твій стан', icon: Heart, items: summarizeContext((entry) => entry.moods) },
     { label: 'Місця', title: 'Де саме', icon: MapPin, items: summarizeContext((entry) => entry.places) },
     { label: 'Локації', title: 'Загальний контекст', icon: LocateFixed, items: summarizeContext((entry) => entry.locations) },
     { label: 'Пози', title: 'Що обираєш', icon: PersonStanding, items: summarizeContext((entry) => entry.positions) },
@@ -4090,14 +4087,8 @@ function InsightsView({
       const value =
         heatMetric === 'count'
           ? matches.length
-          : heatMetric === 'rating'
-            ? matches.reduce((sum, item) => sum + item.rating, 0) /
-              Math.max(1, matches.length)
-            : matches.reduce(
-                (sum, item) =>
-                  sum + (item.mood - (item.moodBefore ?? item.mood)),
-                0,
-              ) / Math.max(1, matches.length);
+          : matches.reduce((sum, item) => sum + item.rating, 0) /
+            Math.max(1, matches.length);
       return { matches, value };
     }),
   );
@@ -4133,6 +4124,7 @@ function InsightsView({
       ...(item.places ?? []),
       ...(item.positions ?? []),
       ...(item.locations ?? []),
+      ...(item.moods ?? []),
     ];
     values.forEach((label) => {
       const old = factorMap.get(label) ?? {
@@ -4172,15 +4164,6 @@ function InsightsView({
     items.length
       ? items.reduce((sum, item) => sum + item.rating, 0) / items.length
       : 0;
-  const moodTracked = scoped.filter(
-    (item) => typeof item.moodBefore === 'number',
-  );
-  const avgMoodChange = moodTracked.length
-    ? moodTracked.reduce(
-        (sum, item) => sum + item.mood - (item.moodBefore ?? item.mood),
-        0,
-      ) / moodTracked.length
-    : 0;
   const previousScoped = entries.filter((item) => {
     const age = Date.now() - new Date(item.createdAt).getTime();
     return age > range * 86400000 && age <= range * 2 * 86400000;
@@ -4781,7 +4764,6 @@ function InsightsView({
                 [
                   ['count', 'Частота'],
                   ['rating', 'Оцінка'],
-                  ['mood', 'Настрій'],
                 ] as const
               ).map((item) => (
                 <button
@@ -4818,9 +4800,7 @@ function InsightsView({
                         <em>
                           {heatMetric === 'count'
                             ? cell.matches.length
-                            : heatMetric === 'rating'
-                              ? cell.value.toFixed(1)
-                              : `${cell.value >= 0 ? '+' : ''}${cell.value.toFixed(1)}`}
+                            : cell.value.toFixed(1)}
                         </em>
                       ) : null}
                     </i>
@@ -4911,18 +4891,16 @@ function InsightsView({
       <section className="mood-report-grid">
         <article className="analytics-card mood-shift">
           <div>
-            <span className="section-kicker">До → після</span>
-            <h3>Зміна настрою</h3>
+            <span className="section-kicker">Настрій</span>
+            <h3>Найчастіший стан</h3>
           </div>
           <strong>
-            {moodTracked.length
-              ? `${avgMoodChange >= 0 ? '+' : ''}${avgMoodChange.toFixed(1)}`
-              : '—'}
-            <small>/10</small>
+            {contextGroups[0].items[0]?.label ?? '—'}
           </strong>
           <p>
-            {moodTracked.length} сесій із двома оцінками. Нове поле вже доступне
-            у формі запису.
+            {contextGroups[0].items[0]
+              ? `${contextGroups[0].items[0].count} сесій · середня оцінка ${contextGroups[0].items[0].rating.toFixed(1)}/5`
+              : 'Обери настрій у новому записі, щоб побачити патерн.'}
           </p>
         </article>
         <article className="monthly-report">
