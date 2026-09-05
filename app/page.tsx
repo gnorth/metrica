@@ -4284,6 +4284,41 @@ function InsightsView({
           <small>найкраща — 4 дні</small>
         </article>
       </section>
+      <section className="records-row records-row-summary">
+        <article>
+          <span className="record-icon">
+            <Clock3 />
+          </span>
+          <div>
+            <small>Найдовша сесія</small>
+            <strong>
+              {Math.max(...scoped.map((item) => item.duration ?? 20), 0)} хв
+            </strong>
+          </div>
+        </article>
+        <article>
+          <span className="record-icon coral">
+            <Star />
+          </span>
+          <div>
+            <small>Найкраща оцінка</small>
+            <strong>
+              {best?.rating ?? 0}/5 · {best?.type ?? '—'}
+            </strong>
+          </div>
+        </article>
+        <article>
+          <span className="record-icon lime">
+            <Zap />
+          </span>
+          <div>
+            <small>Найчастіший тег</small>
+            <strong>
+              {scoped.flatMap((item) => item.tags)[0] ?? 'Ще немає'}
+            </strong>
+          </div>
+        </article>
+      </section>
       {focus &&
         (() => {
           const meta = focusMeta[focus],
@@ -4852,41 +4887,6 @@ function InsightsView({
             <Download />
             Зберегти як PDF
           </button>
-        </article>
-      </section>
-      <section className="records-row">
-        <article>
-          <span className="record-icon">
-            <Clock3 />
-          </span>
-          <div>
-            <small>Найдовша сесія</small>
-            <strong>
-              {Math.max(...scoped.map((item) => item.duration ?? 20), 0)} хв
-            </strong>
-          </div>
-        </article>
-        <article>
-          <span className="record-icon coral">
-            <Star />
-          </span>
-          <div>
-            <small>Найкраща оцінка</small>
-            <strong>
-              {best?.rating ?? 0}/5 · {best?.type ?? '—'}
-            </strong>
-          </div>
-        </article>
-        <article>
-          <span className="record-icon lime">
-            <Zap />
-          </span>
-          <div>
-            <small>Найчастіший тег</small>
-            <strong>
-              {scoped.flatMap((item) => item.tags)[0] ?? 'Ще немає'}
-            </strong>
-          </div>
         </article>
       </section>
       <p className="insight-footnote">
