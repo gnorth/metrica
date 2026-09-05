@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Area, AreaChart, Bar, CartesianGrid, Cell, Pie, PieChart, PolarAngleAxis, PolarGrid, Radar, RadarChart, XAxis, YAxis } from 'recharts';
 
-type View = 'today' | 'history' | 'calendar' | 'goals' | 'insights' | 'session' | 'taxonomy' | 'data';
+type View = 'today' | 'history' | 'calendar' | 'goals' | 'insights' | 'session' | 'taxonomy' | 'data' | 'timer';
 type StatFocus = 'sessions' | 'duration' | 'orgasms' | 'rating';
 type Entry = { id: string; type: string; mood: number; moodBefore?: number; duration: number; rating: number; orgasms: number; time: string; note: string; tags: string[]; places?: string[]; positions?: string[]; locations?: string[]; createdAt: string };
 type GoalMetric = 'sessions' | 'minutes' | 'rating';
@@ -62,7 +62,6 @@ export default function Home() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [ready, setReady] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [timerOpen, setTimerOpen] = useState(false);
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [mood, setMood] = useState(8);
@@ -166,7 +165,7 @@ export default function Home() {
   const restoreData = (data:{entries:Entry[];goals?:Goal[];taxonomy?:Taxonomy;archived?:Taxonomy}) => { setEntries(data.entries);localStorage.setItem('metrika-entries',JSON.stringify(data.entries));if(data.goals){setGoals(data.goals);localStorage.setItem('metrika-goals',JSON.stringify(data.goals))}if(data.taxonomy){setTaxonomy({...emptyTaxonomy,...data.taxonomy});localStorage.setItem('metrika-taxonomy',JSON.stringify(data.taxonomy))}if(data.archived){setArchivedTaxonomy({...emptyTaxonomy,...data.archived});localStorage.setItem('metrika-taxonomy-archived',JSON.stringify(data.archived))} };
 
   const finishTimer = () => {
-    setTimerRunning(false); setTimerOpen(false); setEditingId(null); setDuration(Math.max(1, Math.round(timerSeconds / 60))); setDialogOpen(true);
+    setTimerRunning(false); setView('today'); setEditingId(null); setDuration(Math.max(1, Math.round(timerSeconds / 60))); setDialogOpen(true);
   };
 
   const undoLast = () => {
@@ -198,6 +197,8 @@ export default function Home() {
   const periodLabels:Record<GoalPeriod,string>={day:'день',week:'тиждень',fortnight:'2 тижні',month:'місяць'};
   const goalSentence=goalIntent==='time'?`Я хочу приділяти собі ${goalTarget} хв протягом ${periodLabels[goalPeriod]}.`:goalIntent==='limit'?`Я хочу проводити не більше ${goalTarget} сес. протягом ${periodLabels[goalPeriod]}.`:goalIntent==='screenFree'?`Я хочу мати щонайменше ${goalTarget} сес. без екранів протягом ${periodLabels[goalPeriod]}.`:`Я хочу мати щонайменше ${goalTarget} сес. протягом ${periodLabels[goalPeriod]}.`;
 
+  if(view==='timer')return <TimerScreen seconds={timerSeconds} running={timerRunning} onToggle={()=>setTimerRunning(value=>!value)} onReset={()=>setTimerSeconds(0)} onFinish={finishTimer} onBack={()=>{setTimerRunning(false);nav('today')}}/>;
+
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="app-shell">
@@ -216,12 +217,12 @@ export default function Home() {
         <section className="workspace">
           <header className="topbar">
             <div><p className="eyebrow">{currentDate}</p><h1>{view === 'today' ? 'Твій простір' : view === 'history' ? 'Історія' : view === 'calendar' ? 'Календар' : view === 'goals' ? 'Твої цілі' : view === 'session' ? 'Сесія' : view === 'taxonomy' ? 'Твій словник' : view === 'data' ? 'Захист даних' : 'Статистика'} <span>✦</span></h1></div>
-            <div className="top-actions"><button className="timer-pill" onClick={() => setTimerOpen(true)}><Timer /> Live-таймер</button><div className="streak-pill" title="Поточна серія активних днів"><Flame /> {stats.streak} {stats.streak===1?'день':'днів'}</div><button className={`avatar ${view==='taxonomy'?'active':''}`} aria-label="Керувати словником" title="Словник" onClick={() => nav('taxonomy')}><CircleUserRound /></button></div>
+            <div className="top-actions"><button className="timer-pill" onClick={() => nav('timer')}><Timer /> Live-таймер</button><div className="streak-pill" title="Поточна серія активних днів"><Flame /> {stats.streak} {stats.streak===1?'день':'днів'}</div><button className={`avatar ${view==='taxonomy'?'active':''}`} aria-label="Керувати словником" title="Словник" onClick={() => nav('taxonomy')}><CircleUserRound /></button></div>
           </header>
 
           {showDemoNote && entries.some(item => item.id.startsWith('demo-')) && <div className="demo-note"><Sparkles /><span><strong>Тут є демо-дані,</strong> щоб ти одразу побачив користь. Перший запис замінить їх твоїми.</span><button onClick={() => {setShowDemoNote(false);localStorage.setItem('metrika-demo-note','hidden')}} aria-label="Більше не показувати"><X /></button></div>}
 
-          {view === 'today' && <TodayView entries={entries} stats={stats} ready={ready} openLog={openNewEntry} openTimer={() => setTimerOpen(true)} openInsights={() => nav('insights')} openStat={openStat} openSession={openSession} editEntry={editEntry} saved={saved} />}
+          {view === 'today' && <TodayView entries={entries} stats={stats} ready={ready} openLog={openNewEntry} openTimer={() => nav('timer')} openInsights={() => nav('insights')} openStat={openStat} openSession={openSession} editEntry={editEntry} saved={saved} />}
           {view === 'history' && <HistoryView entries={entries} openLog={openNewEntry} onOpen={openSession} onEdit={editEntry} onDuplicate={duplicateEntry} onDelete={deleteEntry} />}
           {view === 'calendar' && <CalendarView entries={entries} openLog={openNewEntry} onOpen={openSession} />}
           {view === 'goals' && <GoalsView entries={entries} goals={goals} openGoal={() => openGoalForm()} onEdit={openGoalForm} onUpdate={updateGoal} onDelete={deleteGoal} />}
@@ -250,12 +251,13 @@ export default function Home() {
           </div>
         </DialogContent>
       </Dialog>
-      <Dialog open={timerOpen} onOpenChange={(open) => { setTimerOpen(open); if (!open) setTimerRunning(false); }}>
-        <DialogContent className="timer-dialog" showCloseButton={false}><div className="timer-head"><span><span className="live-dot" /> Live-таймер</span><button onClick={() => { setTimerOpen(false); setTimerRunning(false); }} aria-label="Закрити таймер"><X /></button></div><div className="timer-face"><small>{timerRunning ? 'СЕСІЯ ТРИВАЄ' : timerSeconds ? 'ТАЙМЕР НА ПАУЗІ' : 'ГОТОВИЙ ДО СТАРТУ'}</small><strong aria-live="off">{String(Math.floor(timerSeconds / 60)).padStart(2,'0')}:{String(timerSeconds % 60).padStart(2,'0')}</strong><span>{timerRunning?'Можеш закрити очі — час зафіксуємо.':timerSeconds?'Продовж або заверши й створи запис.':'Запусти, коли будеш готовий.'}</span></div><div className="timer-actions"><button className="reset-timer" onClick={() => setTimerSeconds(0)} disabled={!timerSeconds}><RotateCcw /> Скинути</button><button className="play-timer" onClick={() => setTimerRunning(value => !value)} aria-label={timerRunning?'Поставити таймер на паузу':'Запустити таймер'}>{timerRunning ? <Pause /> : <Play />}<span>{timerRunning?'Пауза':'Старт'}</span></button><Button className="finish-timer" onClick={finishTimer} disabled={!timerSeconds}><Check /> Завершити й записати</Button></div><p><LockKeyhole /> Увесь відлік залишається тільки на цьому пристрої</p></DialogContent>
-      </Dialog>
       <Dialog open={goalOpen} onOpenChange={setGoalOpen}><DialogContent className="goal-dialog"><DialogHeader><span className="dialog-kicker">{goalEditingId?'Редагування цілі':'Нова особиста ціль'}</span><DialogTitle>{goalEditingId?'Налаштуй свою ціль':'Що ти хочеш змінити?'}</DialogTitle><DialogDescription>Обери найближчий намір — решту Metrika налаштує зрозуміло.</DialogDescription></DialogHeader><div className="goal-form"><fieldset className="goal-intent-selector"><legend>1. Обери свій намір</legend><div><button type="button" className={goalIntent==='regularity'?'selected':''} onClick={()=>chooseGoalIntent('regularity')}><Flame/><span><strong>Підтримувати ритм</strong><small>Регулярна практика</small></span></button><button type="button" className={goalIntent==='limit'?'selected':''} onClick={()=>chooseGoalIntent('limit')}><ShieldCheck/><span><strong>Робити це рідше</strong><small>Комфортна межа</small></span></button><button type="button" className={goalIntent==='time'?'selected':''} onClick={()=>chooseGoalIntent('time')}><Clock3/><span><strong>Приділяти собі час</strong><small>Сума хвилин</small></span></button><button type="button" className={goalIntent==='screenFree'?'selected':''} onClick={()=>chooseGoalIntent('screenFree')}><Sparkles/><span><strong>Менше екранів</strong><small>Сесії без екранів</small></span></button></div></fieldset><fieldset className="goal-target-selector"><legend>2. {goalTargetConfig.label}</legend><div>{goalTargetConfig.values.map(value=><button type="button" key={value} className={goalTarget===value?'selected':''} aria-pressed={goalTarget===value} onClick={()=>setGoalTarget(value)}><strong>{value}</strong><span>{goalTargetConfig.unit}</span></button>)}</div><p>{goalTargetConfig.hint}</p></fieldset><fieldset className="goal-period-selector"><legend>3. За який період?</legend><div>{([['day','День'],['week','Тиждень'],['fortnight','2 тижні'],['month','Місяць']] as [GoalPeriod,string][]).map(([value,label])=><button type="button" key={value} className={goalPeriod===value?'selected':''} aria-pressed={goalPeriod===value} onClick={()=>setGoalPeriod(value)}>{label}</button>)}</div></fieldset><div className="goal-sentence"><Check/><div><span>Твоя ціль звучить так</span><strong>{goalSentence}</strong></div></div><label>Назва цілі<input className="goal-input" value={goalTitle} onChange={event=>setGoalTitle(event.target.value)} placeholder="Наприклад, Мій комфортний ритм"/></label>{goalIntent!=='screenFree'&&<div className="goal-filter-box"><div><strong>Хочеш уточнити?</strong><span>Необов’язково — можна враховувати лише певні сесії</span></div><div className="goal-form-grid"><label>Категорія<select value={goalCategory} onChange={event=>setGoalCategory(event.target.value)}><option value="">Усі категорії</option>{[...new Set([...typeOptions.map(item=>item.id),...taxonomy.categories])].map(item=><option key={item}>{item}</option>)}</select></label><label>Тег<select value={goalTag} onChange={event=>setGoalTag(event.target.value)}><option value="">Будь-який тег</option>{[...new Set([...defaultTagOptions,...taxonomy.tags])].map(item=><option key={item}>{item}</option>)}</select></label></div></div>}<div className="goal-dialog-actions"><button onClick={()=>setGoalOpen(false)}>Скасувати</button><Button onClick={saveGoal} disabled={!goalTitle.trim()}><Target/>{goalEditingId?'Зберегти зміни':'Створити ціль'}</Button></div></div></DialogContent></Dialog>
     </main>
   );
+}
+
+function TimerScreen({seconds,running,onToggle,onReset,onFinish,onBack}:{seconds:number;running:boolean;onToggle:()=>void;onReset:()=>void;onFinish:()=>void;onBack:()=>void}){
+  return <main className="timer-screen"><div className="timer-stage"><header className="timer-head"><button onClick={onBack} aria-label="Повернутися на головну"><ArrowLeft/></button><span><span className="live-dot"/>Live-таймер</span><span className="timer-private"><LockKeyhole/>Приватно</span></header><section className="timer-face"><small>{running?'СЕСІЯ ТРИВАЄ':seconds?'ТАЙМЕР НА ПАУЗІ':'ГОТОВИЙ ДО СТАРТУ'}</small><strong aria-live="off">{String(Math.floor(seconds/60)).padStart(2,'0')}:{String(seconds%60).padStart(2,'0')}</strong><span>{running?'Можеш зосередитися на собі — час зафіксуємо.':seconds?'Продовж або заверши й створи запис.':'Запусти, коли будеш готовий.'}</span></section><section className="timer-actions"><button className="reset-timer" onClick={onReset} disabled={!seconds}><RotateCcw/>Скинути</button><button className="play-timer" onClick={onToggle} aria-label={running?'Поставити таймер на паузу':'Запустити таймер'}>{running?<Pause/>:<Play/>}<span>{running?'Пауза':'Старт'}</span></button><Button className="finish-timer" onClick={onFinish} disabled={!seconds}><Check/>Завершити й записати</Button></section><p className="timer-privacy"><LockKeyhole/>Увесь відлік залишається тільки на цьому пристрої</p></div></main>;
 }
 
 function TodayView({ entries, stats, ready, openLog, openTimer, openInsights, openStat, openSession, editEntry, saved }: { entries: Entry[]; stats: { avg: string; avgDuration: number; totalOrgasms: number; weekCount: number; streak: number; eveningShare: number }; ready: boolean; openLog: () => void; openTimer: () => void; openInsights: () => void; openStat:(metric:StatFocus)=>void; openSession: (entry:Entry)=>void; editEntry:(entry:Entry)=>void; saved: boolean }) {
