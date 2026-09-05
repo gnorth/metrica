@@ -13,6 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://metrika-private-tracker.gnorth-13.chatgpt.site'),
   title: 'Metrika — приватний трекер звичок',
   description: 'Розумій свої ритми, відстежуй звички та будуй кращі ритуали.',
   openGraph: {
