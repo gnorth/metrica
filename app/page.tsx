@@ -2198,10 +2198,16 @@ function TodayView({
           </div>
           <div className="pulse-bottom">
             <strong>{stats.weekCount}</strong>
-            <span>
-              записи
-              <br />
-              за 7 днів
+            <span className="pulse-label">
+              <span>
+                {stats.weekCount % 10 === 1 && stats.weekCount % 100 !== 11
+                  ? 'запис'
+                  : [2, 3, 4].includes(stats.weekCount % 10) &&
+                      ![12, 13, 14].includes(stats.weekCount % 100)
+                    ? 'записи'
+                    : 'записів'}
+              </span>
+              <small>за 7 днів</small>
             </span>
           </div>
         </article>
