@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity, BarChart3, CalendarDays, Check, ChevronLeft, ChevronRight, CircleUserRound,
   Clock3, Flame, Heart, History, LayoutDashboard, LockKeyhole, MoreHorizontal, Pause, Play, Plus,
-  Copy, Edit3, RotateCcw, Search, Settings, ShieldCheck, Sparkles, Star, Target, Timer, Trash2, X, Zap,
+  Copy, Edit3, RotateCcw, Search, ShieldCheck, Sparkles, Star, Target, Timer, Trash2, X, Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -71,6 +71,7 @@ export default function Home() {
   useEffect(() => {
     const stored = localStorage.getItem('metrika-entries');
     setEntries(stored ? JSON.parse(stored) : demoEntries());
+    setShowDemoNote(localStorage.getItem('metrika-demo-note') !== 'hidden');
     const storedGoals = localStorage.getItem('metrika-goals');
     if (storedGoals) setGoals(JSON.parse(storedGoals));
     setReady(true);
@@ -93,7 +94,8 @@ export default function Home() {
     const totalOrgasms = entries.reduce((sum, item) => sum + (item.orgasms ?? 1), 0);
     const weekCount = entries.filter(item => Date.now() - new Date(item.createdAt).getTime() < 7 * 86400000).length;
     const evening = entries.filter(item => Number(item.time.split(':')[0]) >= 20);
-    return { avg: avg.toFixed(1), avgDuration, totalOrgasms, weekCount, eveningShare: entries.length ? Math.round(evening.length / entries.length * 100) : 0 };
+    const activeDays = new Set(entries.map(item => new Date(item.createdAt).toDateString())); let streak=0; const cursor=new Date(); while(activeDays.has(cursor.toDateString())){streak++;cursor.setDate(cursor.getDate()-1)}
+    return { avg: avg.toFixed(1), avgDuration, totalOrgasms, weekCount, streak, eveningShare: entries.length ? Math.round(evening.length / entries.length * 100) : 0 };
   }, [entries]);
 
   const saveEntry = useCallback((input?: { mood?: number; type?: string; note?: string; tags?: string[]; duration?: number; rating?: number; orgasms?: number }) => {
@@ -141,25 +143,24 @@ export default function Home() {
         <aside className="sidebar">
           <button className="brand-mark" onClick={() => nav('today')} aria-label="Metrika, на головну"><span className="brand-glyph">M</span><span className="brand-name">metrika</span></button>
           <nav className="nav-list" aria-label="Основна навігація">
-            <button className={`nav-item ${view === 'today' ? 'active' : ''}`} onClick={() => nav('today')}><LayoutDashboard /><span>Сьогодні</span></button>
-            <button className={`nav-item ${view === 'history' ? 'active' : ''}`} onClick={() => nav('history')}><History /><span>Історія</span></button>
-            <button className={`nav-item ${view === 'insights' ? 'active' : ''}`} onClick={() => nav('insights')}><BarChart3 /><span>Статистика</span></button>
-            <button className={`nav-item ${view === 'calendar' ? 'active' : ''}`} onClick={() => nav('calendar')}><CalendarDays /><span>Календар</span></button>
-            <button className={`nav-item ${view === 'goals' ? 'active' : ''}`} onClick={() => nav('goals')}><Target /><span>Цілі</span></button>
+            <button aria-label="Сьогодні" title="Сьогодні" className={`nav-item ${view === 'today' ? 'active' : ''}`} onClick={() => nav('today')}><LayoutDashboard /><span>Сьогодні</span></button>
+            <button aria-label="Історія" title="Історія" className={`nav-item ${view === 'history' ? 'active' : ''}`} onClick={() => nav('history')}><History /><span>Історія</span></button>
+            <button aria-label="Статистика" title="Статистика" className={`nav-item ${view === 'insights' ? 'active' : ''}`} onClick={() => nav('insights')}><BarChart3 /><span>Статистика</span></button>
+            <button aria-label="Календар" title="Календар" className={`nav-item ${view === 'calendar' ? 'active' : ''}`} onClick={() => nav('calendar')}><CalendarDays /><span>Календар</span></button>
+            <button aria-label="Цілі" title="Цілі" className={`nav-item ${view === 'goals' ? 'active' : ''}`} onClick={() => nav('goals')}><Target /><span>Цілі</span></button>
           </nav>
           <div className="privacy-card"><LockKeyhole /><div><strong>Приватний простір</strong><span>Записи лишаються на пристрої</span></div></div>
-          <button className="nav-item settings"><Settings /><span>Налаштування</span></button>
         </aside>
 
         <section className="workspace">
           <header className="topbar">
             <div><p className="eyebrow">{currentDate}</p><h1>{view === 'today' ? 'Твій простір' : view === 'history' ? 'Історія' : view === 'calendar' ? 'Календар' : view === 'goals' ? 'Твої цілі' : 'Статистика'} <span>✦</span></h1></div>
-            <div className="top-actions"><button className="timer-pill" onClick={() => setTimerOpen(true)}><Timer /> Live-таймер</button><div className="streak-pill"><Flame /> 7 днів</div><button className="avatar" aria-label="Профіль" onClick={() => nav('insights')}><CircleUserRound /></button></div>
+            <div className="top-actions"><button className="timer-pill" onClick={() => setTimerOpen(true)}><Timer /> Live-таймер</button><div className="streak-pill" title="Поточна серія активних днів"><Flame /> {stats.streak} {stats.streak===1?'день':'днів'}</div><button className="avatar" aria-label="Відкрити статистику профілю" onClick={() => nav('insights')}><CircleUserRound /></button></div>
           </header>
 
-          {showDemoNote && entries.some(item => item.id.startsWith('demo-')) && <div className="demo-note"><Sparkles /><span><strong>Тут є демо-дані,</strong> щоб ти одразу побачив користь. Перший запис замінить їх твоїми.</span><button onClick={() => setShowDemoNote(false)} aria-label="Закрити"><X /></button></div>}
+          {showDemoNote && entries.some(item => item.id.startsWith('demo-')) && <div className="demo-note"><Sparkles /><span><strong>Тут є демо-дані,</strong> щоб ти одразу побачив користь. Перший запис замінить їх твоїми.</span><button onClick={() => {setShowDemoNote(false);localStorage.setItem('metrika-demo-note','hidden')}} aria-label="Більше не показувати"><X /></button></div>}
 
-          {view === 'today' && <TodayView entries={entries} stats={stats} ready={ready} openLog={openNewEntry} openTimer={() => setTimerOpen(true)} saved={saved} />}
+          {view === 'today' && <TodayView entries={entries} stats={stats} ready={ready} openLog={openNewEntry} openTimer={() => setTimerOpen(true)} openInsights={() => nav('insights')} saved={saved} />}
           {view === 'history' && <HistoryView entries={entries} openLog={openNewEntry} onEdit={editEntry} onDuplicate={duplicateEntry} onDelete={deleteEntry} />}
           {view === 'calendar' && <CalendarView entries={entries} openLog={openNewEntry} />}
           {view === 'goals' && <GoalsView entries={entries} goals={goals} openGoal={() => setGoalOpen(true)} />}
@@ -193,7 +194,7 @@ export default function Home() {
   );
 }
 
-function TodayView({ entries, stats, ready, openLog, openTimer, saved }: { entries: Entry[]; stats: { avg: string; avgDuration: number; totalOrgasms: number; weekCount: number; eveningShare: number }; ready: boolean; openLog: () => void; openTimer: () => void; saved: boolean }) {
+function TodayView({ entries, stats, ready, openLog, openTimer, openInsights, saved }: { entries: Entry[]; stats: { avg: string; avgDuration: number; totalOrgasms: number; weekCount: number; streak: number; eveningShare: number }; ready: boolean; openLog: () => void; openTimer: () => void; openInsights: () => void; saved: boolean }) {
   const recent = entries.slice(0, 3);
   return <>
     <section className="hero-grid">
@@ -203,7 +204,7 @@ function TodayView({ entries, stats, ready, openLog, openTimer, saved }: { entri
     <section className="stat-grid four" aria-label="Коротка статистика"><article className="stat-card"><span>Соло-сесій</span><strong>{ready ? entries.length : '—'}</strong><small>зафіксовано приватно</small></article><article className="stat-card"><span>Середній час</span><strong>{stats.avgDuration}<em> хв</em></strong><small>на одну сесію</small></article><article className="stat-card"><span>Оргазмів</span><strong>{stats.totalOrgasms}</strong><small>загалом</small></article><article className="stat-card"><span>Задоволення</span><strong>{stats.avg}<em>/5</em></strong><small>середня оцінка</small></article></section>
     <section className="content-grid">
       <article className="timeline-card"><div className="title-row"><div><span className="section-kicker">Останнє</span><h3>Недавні сесії</h3></div><button onClick={() => document.querySelector<HTMLButtonElement>('.nav-item:nth-child(2)')?.click()}>Вся історія <ChevronRight /></button></div><div className="mini-timeline">{recent.map((item, index) => <div className="timeline-row" key={item.id}><span className={`timeline-dot tone-${Math.min(index + 1, 3)}`}><Heart /></span><div><strong>{item.type}</strong><small>{formatDay(item.createdAt)} · {item.time} · {item.duration ?? 20} хв{item.tags[0] ? ` · ${item.tags[0]}` : ''}</small></div><div className="mood-score">{item.rating ?? 4}<span>/5</span></div></div>)}</div></article>
-      <article className="insight-card"><div className="insight-top"><div className="insight-icon"><Sparkles /></div><span>На основі {entries.length} записів</span></div><span className="section-kicker">Помічено для тебе</span><h3>{stats.eveningShare >= 50 ? 'Вечір — твій природний ритм' : 'Твій ритм досить гнучкий'}</h3><p>{stats.eveningShare >= 50 ? `${stats.eveningShare}% активностей трапляються після 20:00. Це патерн, не оцінка.` : 'Час активності змінюється — поки зарано робити сильні висновки.'}</p><button>Розібрати патерн <ChevronRight /></button></article>
+      <article className="insight-card"><div className="insight-top"><div className="insight-icon"><Sparkles /></div><span>На основі {entries.length} записів</span></div><span className="section-kicker">Помічено для тебе</span><h3>{stats.eveningShare >= 50 ? 'Вечір — твій природний ритм' : 'Твій ритм досить гнучкий'}</h3><p>{stats.eveningShare >= 50 ? `${stats.eveningShare}% активностей трапляються після 20:00. Це патерн, не оцінка.` : 'Час активності змінюється — поки зарано робити сильні висновки.'}</p><button onClick={openInsights}>Розібрати патерн <ChevronRight /></button></article>
     </section>
   </>;
 }
@@ -232,7 +233,7 @@ function CalendarView({ entries, openLog }: { entries: Entry[]; openLog: () => v
 function GoalsView({ entries, goals, openGoal }: { entries: Entry[]; goals: Goal[]; openGoal: () => void }) {
   const weekEntries = entries.filter(item => Date.now() - new Date(item.createdAt).getTime() < 7 * 86400000);
   const monthEntries = entries.filter(item => Date.now() - new Date(item.createdAt).getTime() < 30 * 86400000);
-  return <><section className="goals-lead"><div><span className="section-kicker">Без гонитви за цифрами</span><h2>Цілі, які підтримують<br/>твій ритм.</h2><p>Відстежуй цікаві для себе патерни. Жодна ціль не є обов’язковою.</p></div><Button onClick={openGoal}><Plus /> Створити ціль</Button></section><section className="goals-grid">{goals.map((goal,index) => { const source = goal.period === 'week' ? weekEntries : monthEntries; const value = goal.metric === 'minutes' ? source.reduce((sum,item) => sum + (item.duration ?? 20),0) : source.length; const progress = Math.min(100,Math.round(value / goal.target * 100)); return <article className={`goal-card-large ${progress >= 100 ? 'complete' : ''}`} key={goal.id}><div className="goal-card-top"><span className={`goal-symbol tone-${index % 3}`}><Target /></span><div><span>{goal.period === 'week' ? 'Тиждень' : 'Місяць'}</span><h3>{goal.title}</h3></div><button aria-label="Меню цілі"><MoreHorizontal /></button></div><div className="goal-big-number"><strong>{value}</strong><span>/ {goal.target} {goal.metric === 'minutes' ? 'хв' : 'сесій'}</span></div><div className="goal-line"><span style={{width:`${progress}%`}} /></div><div className="goal-card-bottom"><span>{progress >= 100 ? <><Check /> Досягнуто</> : `${progress}% виконано`}</span><span>{goal.period === 'week' ? '2 дні залишилось' : '26 днів залишилось'}</span></div></article>;})}<button className="new-goal-card" onClick={openGoal}><span><Plus /></span><strong>Нова особиста ціль</strong><small>Створи власний орієнтир</small></button></section></>;
+  return <><section className="goals-lead"><div><span className="section-kicker">Без гонитви за цифрами</span><h2>Цілі, які підтримують<br/>твій ритм.</h2><p>Відстежуй цікаві для себе патерни. Жодна ціль не є обов’язковою.</p></div><Button onClick={openGoal}><Plus /> Створити ціль</Button></section><section className="goals-grid">{goals.map((goal,index) => { const source = goal.period === 'week' ? weekEntries : monthEntries; const value = goal.metric === 'minutes' ? source.reduce((sum,item) => sum + (item.duration ?? 20),0) : source.length; const progress = Math.min(100,Math.round(value / goal.target * 100)); return <article className={`goal-card-large ${progress >= 100 ? 'complete' : ''}`} key={goal.id}><div className="goal-card-top"><span className={`goal-symbol tone-${index % 3}`}><Target /></span><div><span>{goal.period === 'week' ? 'Тиждень' : 'Місяць'}</span><h3>{goal.title}</h3></div></div><div className="goal-big-number"><strong>{value}</strong><span>/ {goal.target} {goal.metric === 'minutes' ? 'хв' : 'сесій'}</span></div><div className="goal-line"><span style={{width:`${progress}%`}} /></div><div className="goal-card-bottom"><span>{progress >= 100 ? <><Check /> Досягнуто</> : `${progress}% виконано`}</span><span>{goal.period === 'week' ? '2 дні залишилось' : '26 днів залишилось'}</span></div></article>;})}<button className="new-goal-card" onClick={openGoal}><span><Plus /></span><strong>Нова особиста ціль</strong><small>Створи власний орієнтир</small></button></section></>;
 }
 
 function InsightsView({ entries, stats }: { entries: Entry[]; stats: { avg: string; avgDuration: number; totalOrgasms: number; weekCount: number; eveningShare: number } }) {
