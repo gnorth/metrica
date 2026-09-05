@@ -3387,7 +3387,10 @@ function GoalsView({
           tone: 'good',
           label: goal.rule === 'atLeast' ? 'Досягнуто' : 'У межах',
         }
-      : { tone: 'attention', label: 'Потрібна увага' };
+      : {
+          tone: 'attention',
+          label: goal.rule === 'atMost' ? 'Ліміт перевищено' : 'У процесі',
+        };
   };
   return (
     <section className="goals-page">
