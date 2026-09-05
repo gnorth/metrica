@@ -197,3 +197,7 @@ button.stat-card{position:relative;display:block;width:100%;font-family:inherit;
   .session-page>.session-back{display:none}
   .dialog-close-desktop{display:none}.dialog-close-mobile{display:block}
 }
+
+/* Keep the goal builder usable on shorter laptop displays. */
+.goal-dialog{max-height:calc(100dvh - 30px)!important;overflow-x:hidden!important;overflow-y:auto!important;overscroll-behavior:contain;scrollbar-gutter:stable}
+@media(min-width:681px){.goal-dialog .goal-dialog-actions{position:sticky;z-index:4;bottom:-25px;margin:4px -25px -25px;padding:14px 25px 25px;background:linear-gradient(180deg,#fffefa00,#fffefa 24%)}.goal-dialog>[data-slot=dialog-close]{position:sticky!important;z-index:6;top:0!important;float:right;margin:-13px -13px -44px 0;background:#fffefa!important;box-shadow:0 3px 12px #19242112}}
