@@ -1986,6 +1986,24 @@ function TodayView({
   saved: boolean;
 }) {
   const recent = entries.slice(0, 3);
+  const [coachHidden, setCoachHidden] = useState(false);
+  const todayKey = new Date().toISOString().slice(0, 10);
+  useEffect(() => setCoachHidden(localStorage.getItem('metrika-coach-hidden') === todayKey), [todayKey]);
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const todayCount = entries.filter(entry => new Date(entry.createdAt).getTime() >= todayStart.getTime()).length;
+  const latestStamp = entries.length ? Math.max(...entries.map(entry => new Date(entry.createdAt).getTime())) : Date.now();
+  const daysSince = entries.length ? Math.max(0, Math.floor((todayStart.getTime() - latestStamp) / 86400000)) : 0;
+  const recentWindow = entries.slice(0, 10);
+  const edgingCount = recentWindow.filter(entry => entry.type === 'Edging').length;
+  const todaySessionWord = todayCount % 10 === 1 && todayCount % 100 !== 11 ? 'сесія' : [2, 3, 4].includes(todayCount % 10) && ![12, 13, 14].includes(todayCount % 100) ? 'сесії' : 'сесій';
+  const coach = todayCount >= 3
+    ? { tone: 'rest', icon: ShieldCheck, eyebrow: 'Тілу теж потрібен ритм', title: `${todayCount} ${todaySessionWord} за сьогодні — ого.`, text: 'Можливо, зараз найкращий вибір — пауза, вода й трохи відпочинку.', action: 'Подивитися день', onAction: openInsights }
+    : daysSince >= 6
+      ? { tone: 'return', icon: Heart, eyebrow: 'Без тиску', title: `${daysSince} днів без сесій. Як ти?`, text: 'Якщо хочеться зняти напругу — можеш почати з таймера. Якщо ні, нічого надолужувати не потрібно.', action: 'Запустити таймер', onAction: openTimer }
+      : edgingCount >= 3 && edgingCount / Math.max(recentWindow.length, 1) >= .5
+        ? { tone: 'pattern', icon: Zap, eyebrow: 'Помічено патерн', title: 'Edging — твоє друге ім’я?', text: `${edgingCount} із ${recentWindow.length} останніх сесій були про контроль і витримку.`, action: 'Розібрати патерн', onAction: openInsights }
+        : { tone: 'steady', icon: Sparkles, eyebrow: 'Твій ритм сьогодні', title: todayCount ? 'Запис уже є — просто спостерігай.' : 'Сьогодні ще без записів.', text: todayCount ? 'Статистика оновлена. Жодних обов’язкових планів на решту дня.' : 'Записуй лише те, що справді сталося — без гонитви за серіями.', action: todayCount ? 'Подивитися статистику' : 'Додати запис', onAction: todayCount ? openInsights : openLog };
+  const CoachIcon = coach.icon;
   return (
     <>
       <section className="hero-grid">
@@ -2052,6 +2070,7 @@ function TodayView({
           </div>
         </article>
       </section>
+      {ready && !coachHidden && <section className={`adaptive-coach ${coach.tone}`} aria-live="polite"><span className="coach-icon"><CoachIcon/></span><div className="coach-copy"><span>{coach.eyebrow}</span><h3>{coach.title}</h3><p>{coach.text}</p></div><button className="coach-action" onClick={coach.onAction}>{coach.action}<ChevronRight/></button><button className="coach-dismiss" onClick={() => { setCoachHidden(true); localStorage.setItem('metrika-coach-hidden', todayKey); }} aria-label="Приховати повідомлення на сьогодні" title="Приховати на сьогодні"><X/></button></section>}
       <section className="stat-grid four" aria-label="Коротка статистика">
         <button className="stat-card" onClick={() => openStat('sessions')}>
           <span>Соло-сесій</span>
