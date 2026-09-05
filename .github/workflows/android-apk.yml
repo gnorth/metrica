@@ -5,7 +5,15 @@ on:
   push:
     branches: [main]
     paths:
+      - "app/**"
+      - "components/**"
+      - "lib/**"
+      - "public/**"
+      - "android-web/**"
       - "android/**"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.android.config.ts"
       - ".github/workflows/android-apk.yml"
 
 permissions:
@@ -25,6 +33,18 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install web dependencies
+        run: npm ci
+
+      - name: Bundle Metrika for offline use
+        run: npm run build:android-web
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4

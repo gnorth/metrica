@@ -481,7 +481,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!('serviceWorker' in navigator)) return;
+    if (window.location.protocol === 'file:' || !('serviceWorker' in navigator)) return;
     const handleUpdate = () => {
       if (sessionStorage.getItem('metrika-sw-refreshed') === 'v3') return;
       sessionStorage.setItem('metrika-sw-refreshed', 'v3');

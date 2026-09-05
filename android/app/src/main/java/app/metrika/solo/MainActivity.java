@@ -16,7 +16,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 public final class MainActivity extends Activity {
-    private static final String APP_URL = "https://metrika-private-tracker.gnorth-13.chatgpt.site/";
+    private static final String APP_URL = "file:///android_asset/www/index.html";
     private static final int FILE_CHOOSER_REQUEST = 1001;
 
     private WebView webView;
@@ -47,6 +47,8 @@ public final class MainActivity extends Activity {
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        settings.setAllowFileAccess(true);
+        settings.setAllowContentAccess(true);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
         settings.setMediaPlaybackRequiresUserGesture(false);
