@@ -1394,7 +1394,11 @@ export default function Home() {
           if (!open) setEditingId(null);
         }}
       >
-        <DialogContent className="entry-dialog">
+        <DialogContent
+          className="entry-dialog"
+          overlayClassName="entry-screen-overlay"
+          closeVariant="back"
+        >
           <DialogHeader>
             <span className="dialog-kicker">
               {editingId ? 'Редагування запису' : 'Нова соло-сесія · приватно'}

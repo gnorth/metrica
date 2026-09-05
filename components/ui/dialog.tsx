@@ -43,13 +43,17 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  overlayClassName,
+  closeVariant = 'responsive',
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean;
+  overlayClassName?: string;
+  closeVariant?: 'responsive' | 'back';
 }) {
   return (
     <DialogPortal>
-      <DialogOverlay />
+      <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
@@ -70,8 +74,14 @@ function DialogContent({
               />
             }
           >
-            <XIcon className="dialog-close-desktop" />
-            <ArrowLeft className="dialog-close-mobile" />
+            {closeVariant === 'back' ? (
+              <ArrowLeft />
+            ) : (
+              <>
+                <XIcon className="dialog-close-desktop" />
+                <ArrowLeft className="dialog-close-mobile" />
+              </>
+            )}
             <span className="sr-only">Закрити й повернутися назад</span>
           </DialogPrimitive.Close>
         )}
