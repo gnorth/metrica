@@ -261,7 +261,7 @@ button.stat-card{position:relative;display:block;width:100%;font-family:inherit;
 @media(max-width:390px){.formula-list article{grid-template-columns:28px minmax(0,1fr) auto;gap:7px;padding-inline:8px}.formula-list article>span{width:28px;height:28px}.formula-list em{padding-inline:6px;font-size:9px!important}}
 
 /* Mobile records become one compact summary strip */
-@media(max-width:760px){.records-row{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.records-row article{min-width:0;min-height:112px;align-items:flex-start;flex-direction:column;gap:10px;padding:12px;border-radius:15px}.records-row article>div{min-width:0}.record-icon{width:34px;height:34px;border-radius:10px}.record-icon svg{width:16px}.workspace .records-row small{font-size:11px!important;line-height:1.25}.workspace .records-row strong{margin-top:4px;font-size:14px!important;line-height:1.25;overflow-wrap:anywhere}}
+@media(max-width:760px){.records-row{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px}.records-row article{min-width:0;min-height:112px;align-items:flex-start;flex-direction:column;gap:10px;padding:12px;border-radius:15px}.records-row article>div{min-width:0}.record-icon{width:34px;height:34px;border-radius:10px}.record-icon svg{width:16px}.workspace .records-row small{font-size:11px!important;line-height:1.25}.workspace .records-row strong{margin-top:4px;font-size:14px!important;line-height:1.25;overflow-wrap:anywhere}}
 @media(max-width:390px){.records-row{gap:6px}.records-row article{min-height:108px;padding:10px}.workspace .records-row small{font-size:10px!important}.workspace .records-row strong{font-size:13px!important}}
 
 /* Balanced hierarchy for the advice card */

@@ -466,8 +466,15 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if ('serviceWorker' in navigator)
-      void navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+    if (!('serviceWorker' in navigator)) return;
+    const handleUpdate = () => {
+      if (sessionStorage.getItem('metrika-sw-refreshed') === 'v2') return;
+      sessionStorage.setItem('metrika-sw-refreshed', 'v2');
+      window.location.reload();
+    };
+    navigator.serviceWorker.addEventListener('controllerchange', handleUpdate);
+    void navigator.serviceWorker.register('/sw.js').then((registration) => registration.update()).catch(() => undefined);
+    return () => navigator.serviceWorker.removeEventListener('controllerchange', handleUpdate);
   }, []);
 
   useEffect(() => {
