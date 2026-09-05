@@ -1114,7 +1114,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="app-shell">
+      <div className={`app-shell ${dialogOpen ? 'entry-active' : ''}`}>
         <aside className="sidebar">
           <button
             className="brand-mark"

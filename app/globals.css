@@ -260,8 +260,9 @@ button.stat-card{position:relative;display:block;width:100%;font-family:inherit;
 
 /* The entry flow is a real app screen rendered without a dialog portal. */
 .entry-page{position:fixed;z-index:80;inset:0;width:100%;height:100dvh;padding:34px 24px 48px;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:#f5f4ed;color:#192421}
+.app-shell.entry-active{display:none}
 .entry-page-header,.entry-page>.entry-form{width:min(920px,100%);margin-inline:auto}
-.entry-page-header{padding:8px 0 21px 58px;border-bottom:1px solid #dedfd7}
+.entry-page-header{padding:58px 0 21px;border-bottom:1px solid #dedfd7}
 .entry-page-header h2{margin:7px 0 5px;font-size:30px;line-height:1.12;letter-spacing:-1px}
 .entry-page-header p{margin:0;color:#78817d;font-size:14px;line-height:1.5}
 .entry-page>.entry-form{margin-top:22px;padding:26px;border:1px solid #dedfd7;border-radius:22px;background:#fffefa}
