@@ -2063,7 +2063,8 @@ function TodayView({
   editEntry: (entry: Entry) => void;
   saved: boolean;
 }) {
-  const recent = entries.slice(0, 3);
+  const orderedEntries = [...entries].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const recent = orderedEntries.slice(0, 3);
   const [coachHidden, setCoachHidden] = useState(false);
   const [coachIndex, setCoachIndex] = useState(0);
   const [coachTouchStart, setCoachTouchStart] = useState<number | null>(null);
@@ -2074,23 +2075,23 @@ function TodayView({
   const todayCount = entries.filter(entry => new Date(entry.createdAt).getTime() >= todayStart.getTime()).length;
   const latestStamp = entries.length ? Math.max(...entries.map(entry => new Date(entry.createdAt).getTime())) : Date.now();
   const daysSince = entries.length ? Math.max(0, Math.floor((todayStart.getTime() - latestStamp) / 86400000)) : 0;
-  const recentWindow = entries.slice(0, 10);
+  const recentWindow = orderedEntries.slice(0, 10);
   const edgingCount = recentWindow.filter(entry => entry.type === 'Edging').length;
   const todaySessionWord = todayCount % 10 === 1 && todayCount % 100 !== 11 ? 'сесія' : [2, 3, 4].includes(todayCount % 10) && ![12, 13, 14].includes(todayCount % 100) ? 'сесії' : 'сесій';
   const primaryCoach = todayCount >= 3
-    ? { tone: 'rest', icon: ShieldCheck, eyebrow: 'Тілу теж потрібен ритм', title: `${todayCount} ${todaySessionWord} за сьогодні — ого.`, text: 'Можливо, зараз найкращий вибір — пауза, вода й трохи відпочинку.', action: 'Подивитися день', onAction: openInsights, secondary: 'Вся історія', onSecondary: openInsights }
+    ? { tone: 'rest', icon: ShieldCheck, eyebrow: 'Висока активність сьогодні', title: `${todayCount} ${todaySessionWord} за день! Ого, дай тілу відпочити.`, text: 'Зроби паузу, випий води й перевір, чи немає подразнення або втоми. Наступна сесія нікуди не поспішає.', action: 'Подивитися день', onAction: openInsights, secondary: 'Вся історія', onSecondary: openInsights }
     : daysSince >= 6
-      ? { tone: 'return', icon: Heart, eyebrow: 'Без тиску', title: `${daysSince} днів без сесій. Як ти?`, text: 'Якщо хочеться зняти напругу — можеш почати з таймера. Якщо ні, нічого надолужувати не потрібно.', action: 'Запустити таймер', onAction: openTimer, secondary: 'Додати вручну', onSecondary: openLog }
+      ? { tone: 'return', icon: Heart, eyebrow: 'Тривала пауза', title: `${daysSince} днів без жодної сесії. Хочеш зняти напругу?`, text: 'Якщо так — обери комфортний темп і не став собі цілей. Якщо бажання немає, нічого надолужувати не потрібно.', action: 'Запустити таймер', onAction: openTimer, secondary: 'Додати вручну', onSecondary: openLog }
       : edgingCount >= 3 && edgingCount / Math.max(recentWindow.length, 1) >= .5
-        ? { tone: 'pattern', icon: Zap, eyebrow: 'Помічено патерн', title: 'Edging — твоє друге ім’я?', text: `${edgingCount} із ${recentWindow.length} останніх сесій були про контроль і витримку.`, action: 'Розібрати патерн', onAction: openInsights, secondary: 'Додати сесію', onSecondary: openLog }
-        : { tone: 'steady', icon: Sparkles, eyebrow: 'Твій ритм сьогодні', title: todayCount ? 'Запис уже є — просто спостерігай.' : 'Сьогодні ще без записів.', text: todayCount ? 'Статистика оновлена. Жодних обов’язкових планів на решту дня.' : 'Записуй лише те, що справді сталося — без гонитви за серіями.', action: todayCount ? 'Подивитися статистику' : 'Додати запис', onAction: todayCount ? openInsights : openLog, secondary: todayCount ? 'Додати ще' : 'Live-таймер', onSecondary: todayCount ? openLog : openTimer };
-  const hour = new Date().getHours();
+        ? { tone: 'pattern', icon: Zap, eyebrow: 'Домінує одна категорія', title: 'Edging — твоє друге ім’я?', text: `${edgingCount} із ${recentWindow.length} останніх сесій були Edging. Перевір, як це впливає на тривалість, задоволення та настрій після.`, action: 'Розібрати патерн', onAction: openCategoryStat.bind(null, 'Edging'), secondary: 'Вся статистика', onSecondary: openInsights }
+        : { tone: 'steady', icon: Sparkles, eyebrow: 'Активність у нормальному ритмі', title: todayCount ? 'Сьогодні вже є запис.' : 'Яскравого сигналу поки немає.', text: todayCount ? 'Статистика оновлена. Продовжуй просто спостерігати за своїм ритмом.' : 'Порада з’явиться, коли записи покажуть помітний патерн — без випадкових припущень.', action: todayCount ? 'Подивитися статистику' : 'Додати запис', onAction: todayCount ? openInsights : openLog, secondary: todayCount ? 'Відкрити історію' : 'Live-таймер', onSecondary: todayCount ? openInsights : openTimer };
   const bestRecent = recentWindow.find((entry) => entry.rating >= 5);
-  const contextualCoach = hour >= 20 || hour < 2
-    ? { tone: 'evening', icon: Timer, eyebrow: 'Вечірній ритм', title: 'Час сповільнитися перед сном', text: 'Якщо хочеться часу для себе, таймер допоможе не відволікатися на годинник.', action: 'Live-таймер', onAction: openTimer, secondary: 'Записати сесію', onSecondary: openLog }
-    : bestRecent
-      ? { tone: 'quality', icon: Star, eyebrow: 'Вдалий досвід', title: 'Що спрацювало найкраще?', text: `Сесія «${bestRecent.type}» отримала 5/5. Подивись на контекст — можливо, там є корисний патерн.`, action: 'Статистика оцінок', onAction: () => openStat('rating'), secondary: 'Відкрити сесію', onSecondary: () => openSession(bestRecent) }
-      : { tone: 'quality', icon: Heart, eyebrow: 'Чесна статистика', title: 'Оцінюй не результат, а досвід', text: 'Настрій до і після сесії поступово покаже, що справді допомагає тобі.', action: 'Подивитися баланс', onAction: openInsights, secondary: 'Додати запис', onSecondary: openLog };
+  const moodGain = recentWindow.length ? recentWindow.reduce((sum, entry) => sum + (entry.mood - (entry.moodBefore ?? entry.mood)), 0) / recentWindow.length : 0;
+  const contextualCoach = bestRecent
+    ? { tone: 'quality', icon: Star, eyebrow: 'Підтверджено записом', title: 'Що спрацювало найкраще?', text: `Сесія «${bestRecent.type}» отримала 5/5. Переглянь її контекст: місце, теги й настрій можуть пояснити, що допомогло.`, action: 'Відкрити сесію', onAction: () => openSession(bestRecent), secondary: 'Статистика оцінок', onSecondary: () => openStat('rating') }
+    : moodGain >= 1
+      ? { tone: 'quality', icon: Heart, eyebrow: 'Помітна зміна настрою', title: 'Після сесій тобі зазвичай легше', text: `За останні ${recentWindow.length} записів настрій зростав у середньому на ${moodGain.toFixed(1)} бала. Подивись, які умови повторюються.`, action: 'Подивитися баланс', onAction: openInsights, secondary: 'Вся статистика', onSecondary: openInsights }
+      : { tone: 'quality', icon: ShieldCheck, eyebrow: 'Недостатньо даних', title: 'Ще рано робити другий висновок', text: 'Додай кілька чесних записів із настроєм до та після — і тут з’явиться порада на основі твого патерну.', action: 'Додати запис', onAction: openLog, secondary: 'Як це працює', onSecondary: openInsights };
   const coaches = [primaryCoach, contextualCoach];
   const coach = coaches[coachIndex % coaches.length];
   const CoachIcon = coach.icon;
@@ -2108,6 +2109,7 @@ function TodayView({
   const hiddenCategoryCount = categoryCounts.slice(3).reduce((sum, item) => sum + item.count, 0);
   return (
     <>
+      {ready && !coachHidden && <section className={`adaptive-coach ${coach.tone}`} aria-live="polite" onTouchStart={(event) => setCoachTouchStart(event.touches[0].clientX)} onTouchEnd={(event) => { if (coachTouchStart === null) return; const distance = event.changedTouches[0].clientX - coachTouchStart; if (Math.abs(distance) > 45) setCoachIndex((value) => (value + (distance < 0 ? 1 : coaches.length - 1)) % coaches.length); setCoachTouchStart(null); }}><span className="coach-icon"><CoachIcon/></span><div className="coach-copy"><div className="coach-meta"><span>{coach.eyebrow}</span><div className="coach-pagination"><button onClick={() => setCoachIndex((value) => (value + coaches.length - 1) % coaches.length)} aria-label="Попередня порада"><ChevronLeft/></button><span>Порада {coachIndex + 1}/{coaches.length}</span><button onClick={() => setCoachIndex((value) => (value + 1) % coaches.length)} aria-label="Наступна порада"><ChevronRight/></button></div></div><h3>{coach.title}</h3><p>{coach.text}</p><div className="coach-actions"><button className="coach-action" onClick={coach.onAction}>{coach.action}<ChevronRight/></button><button className="coach-secondary" onClick={coach.onSecondary}>{coach.secondary}</button></div></div><button className="coach-dismiss" onClick={() => { setCoachHidden(true); localStorage.setItem('metrika-coach-hidden', todayKey); }} aria-label="Приховати повідомлення до завтра" title="Приховати до завтра"><X/></button></section>}
       <section className="hero-grid">
         <article className="quick-card">
           <div className="quick-copy">
@@ -2172,7 +2174,6 @@ function TodayView({
           </div>
         </article>
       </section>
-      {ready && !coachHidden && <section className={`adaptive-coach ${coach.tone}`} aria-live="polite" onTouchStart={(event) => setCoachTouchStart(event.touches[0].clientX)} onTouchEnd={(event) => { if (coachTouchStart === null) return; const distance = event.changedTouches[0].clientX - coachTouchStart; if (Math.abs(distance) > 45) setCoachIndex((value) => (value + (distance < 0 ? 1 : coaches.length - 1)) % coaches.length); setCoachTouchStart(null); }}><span className="coach-icon"><CoachIcon/></span><div className="coach-copy"><div className="coach-meta"><span>{coach.eyebrow}</span><div className="coach-pagination"><button onClick={() => setCoachIndex((value) => (value + coaches.length - 1) % coaches.length)} aria-label="Попередня порада"><ChevronLeft/></button><span>Порада {coachIndex + 1}/{coaches.length}</span><button onClick={() => setCoachIndex((value) => (value + 1) % coaches.length)} aria-label="Наступна порада"><ChevronRight/></button></div></div><h3>{coach.title}</h3><p>{coach.text}</p><div className="coach-actions"><button className="coach-action" onClick={coach.onAction}>{coach.action}<ChevronRight/></button><button className="coach-secondary" onClick={coach.onSecondary}>{coach.secondary}</button></div></div><button className="coach-dismiss" onClick={() => { setCoachHidden(true); localStorage.setItem('metrika-coach-hidden', todayKey); }} aria-label="Приховати повідомлення до завтра" title="Приховати до завтра"><X/></button></section>}
       <section className="stat-grid four" aria-label="Коротка статистика">
         <button className="stat-card" onClick={() => openStat('sessions')}>
           <span>Соло-сесій</span>

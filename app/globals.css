@@ -242,3 +242,6 @@ button.stat-card{position:relative;display:block;width:100%;font-family:inherit;
 /* Keep the seven-day pulse compact at every width */
 .week-dots{grid-template-columns:repeat(7,minmax(0,1fr));width:100%}.week-dots span{min-width:0;height:34px;aspect-ratio:auto}.pulse-card{min-width:0}.pulse-bottom span{line-height:1.25!important}
 @media(max-width:680px){.pulse-card{min-height:0;padding:19px}.week-dots{margin:18px 0 16px;gap:6px}.week-dots span{height:42px;border-radius:10px}.pulse-bottom{align-items:center}.pulse-bottom strong{font-size:38px}.pulse-bottom span br{display:none}.pulse-bottom span{display:flex;gap:4px}}
+
+/* Advice is the first decision-support surface on Home */
+.demo-note + .adaptive-coach,.topbar + .adaptive-coach{margin-top:0}.adaptive-coach + .hero-grid{margin-top:17px}
