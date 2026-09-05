@@ -258,6 +258,18 @@ button.stat-card{position:relative;display:block;width:100%;font-family:inherit;
 .stats-kpis + .records-row-summary{margin-top:-8px;margin-bottom:20px}
 @media(max-width:760px){.stats-kpis + .records-row-summary{margin-top:-5px;margin-bottom:14px}}
 
+/* The entry flow is a real app screen rendered without a dialog portal. */
+.entry-page{position:fixed;z-index:80;inset:0;width:100%;height:100dvh;padding:34px 24px 48px;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:#f5f4ed;color:#192421}
+.entry-page-header,.entry-page>.entry-form{width:min(920px,100%);margin-inline:auto}
+.entry-page-header{padding:8px 0 21px 58px;border-bottom:1px solid #dedfd7}
+.entry-page-header h2{margin:7px 0 5px;font-size:30px;line-height:1.12;letter-spacing:-1px}
+.entry-page-header p{margin:0;color:#78817d;font-size:14px;line-height:1.5}
+.entry-page>.entry-form{margin-top:22px;padding:26px;border:1px solid #dedfd7;border-radius:22px;background:#fffefa}
+.entry-page-back{position:fixed;z-index:82;top:34px;left:max(24px,calc((100vw - 1055px)/2));height:46px;display:flex;align-items:center;gap:8px;padding:0 13px;border:1px solid #d8dad1;border-radius:14px;background:#fffefa;color:#26312d;font-weight:750;box-shadow:0 5px 18px #19242112;cursor:pointer}
+.entry-page-back svg{width:20px;height:20px}
+@media(min-width:681px){.entry-page .optional-details{grid-template-columns:repeat(2,minmax(0,1fr))}.entry-page .optional-details>.field-block:last-child{grid-column:1/-1}}
+@media(max-width:680px){.entry-page{padding:calc(18px + env(safe-area-inset-top)) 14px calc(32px + env(safe-area-inset-bottom))}.entry-page-header{padding:7px 0 17px 54px}.entry-page-header h2{font-size:27px}.entry-page-header p{font-size:14px}.entry-page>.entry-form{margin-top:16px;padding:17px 14px 20px;border-radius:18px}.entry-page-back{top:calc(18px + env(safe-area-inset-top));left:14px;width:46px;padding:0;justify-content:center}.entry-page-back span{display:none}.entry-page .save-button{position:sticky;bottom:calc(4px + env(safe-area-inset-bottom));width:100%;height:52px!important;margin:4px 0 0!important;padding:0 16px!important;border-radius:14px!important;box-shadow:0 9px 25px #ff67463d}}
+
 /* Advice is the first decision-support surface on Home */
 .demo-note + .adaptive-coach,.topbar + .adaptive-coach{margin-top:0}.adaptive-coach + .hero-grid{margin-top:17px}
 

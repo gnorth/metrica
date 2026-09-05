@@ -1387,31 +1387,32 @@ export default function Home() {
         </div>
       )}
 
-      <Dialog
-        open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) setEditingId(null);
-        }}
-      >
-        <DialogContent
-          className="entry-dialog"
-          overlayClassName="entry-screen-overlay"
-          closeVariant="back"
-        >
-          <DialogHeader>
+      {dialogOpen && (
+        <section className="entry-page" aria-label={editingId ? 'Редагування запису' : 'Новий запис'}>
+          <button
+            className="entry-page-back"
+            onClick={() => {
+              setDialogOpen(false);
+              setEditingId(null);
+            }}
+            aria-label="Повернутися назад"
+          >
+            <ArrowLeft />
+            <span>Назад</span>
+          </button>
+          <header className="entry-page-header">
             <span className="dialog-kicker">
               {editingId ? 'Редагування запису' : 'Нова соло-сесія · приватно'}
             </span>
-            <DialogTitle>
+            <h2>
               {editingId ? 'Оновити деталі' : 'Як усе пройшло?'}
-            </DialogTitle>
-            <DialogDescription>
+            </h2>
+            <p>
               {editingId
                 ? 'Зміни одразу оновлять статистику, календар і цілі.'
                 : 'Короткий запис для чесної статистики. Деталі можна пропустити.'}
-            </DialogDescription>
-          </DialogHeader>
+            </p>
+          </header>
           <div className="entry-form">
             <div className="field-block">
               <label>Основна категорія</label>
@@ -1755,8 +1756,8 @@ export default function Home() {
               {editingId ? 'Зберегти зміни' : 'Зберегти приватно'}
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+        </section>
+      )}
       <Dialog open={goalOpen} onOpenChange={setGoalOpen}>
         <DialogContent className="goal-dialog">
           <DialogHeader>
