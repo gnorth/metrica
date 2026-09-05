@@ -2681,6 +2681,7 @@ function DataView({
     archived?: Taxonomy;
   } | null>(null);
   const [status, setStatus] = useState('');
+  const [pendingSource, setPendingSource] = useState<'backup' | 'csv'>('backup');
   const exportEncrypted = async () => {
     if (password.length < 6) {
       setStatus('Пароль має містити щонайменше 6 символів.');
@@ -2707,6 +2708,7 @@ function DataView({
     const esc = (value: unknown) =>
       `"${String(value ?? '').replaceAll('"', '""')}"`;
     const head = [
+      'ID',
       'Дата',
       'Час',
       'Категорія',
@@ -2723,6 +2725,7 @@ function DataView({
     ];
     const rows = entries.map((item) =>
       [
+        item.id,
         item.createdAt.slice(0, 10),
         item.time,
         item.type,
@@ -2754,11 +2757,63 @@ function DataView({
       }
       const data = await decryptBackup(await file.text(), password);
       if (!Array.isArray(data.entries)) throw new Error('Некоректні дані');
+      setPendingSource('backup');
       setPending(data);
       setStatus('');
     } catch {
       setPending(null);
       setStatus('Не вдалося відкрити файл. Перевір пароль і сам бекап.');
+    }
+  };
+  const readCsvFile = async (file: File) => {
+    try {
+      const text = (await file.text()).replace(/^\ufeff/, '');
+      const rows: string[][] = [];
+      let row: string[] = [], cell = '', quoted = false;
+      for (let index = 0; index < text.length; index++) {
+        const char = text[index];
+        if (char === '"') {
+          if (quoted && text[index + 1] === '"') { cell += '"'; index++; }
+          else quoted = !quoted;
+        } else if (char === ',' && !quoted) { row.push(cell); cell = ''; }
+        else if ((char === '\n' || char === '\r') && !quoted) {
+          if (char === '\r' && text[index + 1] === '\n') index++;
+          row.push(cell); if (row.some(Boolean)) rows.push(row); row = []; cell = '';
+        } else cell += char;
+      }
+      row.push(cell); if (row.some(Boolean)) rows.push(row);
+      const headers = rows.shift()?.map((value) => value.trim()) ?? [];
+      const column = (values: string[], name: string) => values[headers.indexOf(name)] ?? '';
+      if (!headers.includes('Дата') || !headers.includes('Категорія')) throw new Error('Некоректний CSV');
+      const splitList = (value: string) => value.split(';').map((item) => item.trim()).filter(Boolean);
+      const imported = rows.map((values): Entry => {
+        const date = column(values, 'Дата');
+        const time = column(values, 'Час') || '12:00';
+        const number = (name: string, fallback: number) => Number(column(values, name)) || fallback;
+        return {
+          id: column(values, 'ID') || crypto.randomUUID(),
+          createdAt: new Date(`${date}T${time}:00`).toISOString(),
+          time,
+          type: column(values, 'Категорія'),
+          duration: number('Тривалість', 20),
+          rating: number('Оцінка', 4),
+          moodBefore: number('Настрій до', 5),
+          mood: number('Настрій після', 5),
+          orgasms: Number(column(values, 'Оргазми')) || 0,
+          tags: splitList(column(values, 'Теги')),
+          places: splitList(column(values, 'Місця')),
+          positions: splitList(column(values, 'Пози')),
+          locations: splitList(column(values, 'Локації')),
+          note: column(values, 'Нотатка'),
+        };
+      });
+      if (!imported.length) throw new Error('Порожній CSV');
+      setPendingSource('csv');
+      setPending({ entries: imported });
+      setStatus('');
+    } catch {
+      setPending(null);
+      setStatus('Не вдалося прочитати CSV. Використай файл, експортований із Metrika.');
     }
   };
   const conflicts = pending
@@ -2836,10 +2891,13 @@ function DataView({
             <Download />
           </span>
           <div>
-            <h3>CSV для таблиць</h3>
-            <p>{entries.length} записів · читається Excel і Google Sheets.</p>
+            <h3>CSV: таблиця сесій</h3>
+            <p>Експорт для Excel/Sheets або імпорт назад у Metrika.</p>
           </div>
-          <button onClick={exportCsv}>Експортувати CSV</button>
+          <div className="csv-actions">
+            <button onClick={exportCsv}><Download /> Експорт</button>
+            <label><Upload /> Імпорт<input type="file" accept=".csv,text/csv" onChange={(event) => { const file = event.target.files?.[0]; if (file) void readCsvFile(file); event.target.value = ''; }} /></label>
+          </div>
         </article>
         <article className="data-card compact privacy-fact">
           <LockKeyhole />
@@ -2860,7 +2918,7 @@ function DataView({
         <div className="import-preview">
           <div>
             <span className="section-kicker">Попередній перегляд</span>
-            <h3>Готово до відновлення</h3>
+            <h3>{pendingSource === 'csv' ? 'CSV готовий до імпорту' : 'Готово до відновлення'}</h3>
           </div>
           <div className="import-numbers">
             <span>
@@ -2875,8 +2933,7 @@ function DataView({
             </span>
           </div>
           <p>
-            Збіги з однаковим ID буде оновлено даними з бекапу. Інші записи
-            залишаться.
+            {pendingSource === 'csv' ? 'Записи з однаковим ID буде оновлено даними з CSV. Цілі та власні списки не зміняться.' : 'Збіги з однаковим ID буде оновлено даними з бекапу. Інші записи залишаться.'}
           </p>
           <div>
             <button onClick={() => setPending(null)}>Скасувати</button>

@@ -245,3 +245,7 @@ button.stat-card{position:relative;display:block;width:100%;font-family:inherit;
 
 /* Advice is the first decision-support surface on Home */
 .demo-note + .adaptive-coach,.topbar + .adaptive-coach{margin-top:0}.adaptive-coach + .hero-grid{margin-top:17px}
+
+/* Symmetric CSV export and import */
+.data-card.compact>.csv-actions{display:flex;gap:7px}.csv-actions button,.csv-actions label{min-height:40px;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 11px;border:1px solid #dcded5;border-radius:11px;background:white;color:#4d5853;font-size:13px;font-weight:750;cursor:pointer}.csv-actions label{background:#192421;color:white;border-color:#192421}.csv-actions svg{width:14px}.csv-actions input{display:none}
+@media(max-width:900px){.data-card.compact>.csv-actions{grid-column:1/-1}.csv-actions button,.csv-actions label{flex:1}}
