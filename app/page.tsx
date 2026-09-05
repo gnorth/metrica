@@ -4763,24 +4763,26 @@ function InsightsView({
             formula.map((item, index) => (
               <article key={item.label}>
                 <span>{index + 1}</span>
-                <div>
-                  <strong>{item.label}</strong>
+                <div className="formula-result">
+                  <div className="formula-result-head">
+                    <strong>{item.label}</strong>
+                    <em
+                      className={
+                        item.count >= 5 ? 'strong' : item.count >= 3 ? 'medium' : ''
+                      }
+                    >
+                      {item.count >= 5
+                        ? 'висока'
+                        : item.count >= 3
+                          ? 'середня'
+                          : 'ранній сигнал'}
+                    </em>
+                  </div>
                   <small>
                     {item.avg.toFixed(1)}/5 · {item.count}{' '}
                     {item.count === 1 ? 'сесія' : 'сесії'}
                   </small>
                 </div>
-                <em
-                  className={
-                    item.count >= 5 ? 'strong' : item.count >= 3 ? 'medium' : ''
-                  }
-                >
-                  {item.count >= 5
-                    ? 'висока'
-                    : item.count >= 3
-                      ? 'середня'
-                      : 'ранній сигнал'}
-                </em>
               </article>
             ))
           ) : (
