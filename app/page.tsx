@@ -4,8 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity, BarChart3, CalendarDays, Check, ChevronLeft, ChevronRight, CircleUserRound,
   Clock3, Flame, Heart, History, LayoutDashboard, LockKeyhole, MoreHorizontal, Pause, Play, Plus,
-  Copy, Edit3, RotateCcw, Search, ShieldCheck, Sparkles, Star, Target, Timer, Trash2, X, Zap,
+  Copy, Edit3, LocateFixed, MapPin, PersonStanding, RotateCcw, Search, ShieldCheck, Sparkles, Star, Tag, Target, Timer, Trash2, X, Zap,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Slider } from '@/components/ui/slider';
@@ -14,8 +15,9 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/
 import { Area, AreaChart, Bar, CartesianGrid, Cell, Pie, PieChart, PolarAngleAxis, PolarGrid, Radar, RadarChart, XAxis, YAxis } from 'recharts';
 
 type View = 'today' | 'history' | 'calendar' | 'goals' | 'insights';
-type Entry = { id: string; type: string; mood: number; duration: number; rating: number; orgasms: number; time: string; note: string; tags: string[]; createdAt: string };
+type Entry = { id: string; type: string; mood: number; duration: number; rating: number; orgasms: number; time: string; note: string; tags: string[]; places?: string[]; positions?: string[]; locations?: string[]; createdAt: string };
 type Goal = { id: string; title: string; metric: 'sessions' | 'minutes'; target: number; period: 'week' | 'month' };
+type Taxonomy = { categories: string[]; tags: string[]; places: string[]; positions: string[]; locations: string[] };
 declare global { interface Document { modelContext?: { registerTool: (tool: unknown, options?: { signal?: AbortSignal }) => void | Promise<void> } } }
 
 const typeOptions = [
@@ -25,6 +27,10 @@ const typeOptions = [
   { id: 'Чуттєва', icon: Heart, hint: 'Повільно й уважно' },
 ];
 const tagOptions = ['Без екранів', 'Іграшка', 'Перед сном', 'Зняти стрес', 'Фантазія', 'У душі'];
+const placeOptions = ['Ліжко', 'Душ', 'Диван', 'Крісло'];
+const positionOptions = ['Лежачи', 'Сидячи', 'Стоячи', 'На боці'];
+const locationOptions = ['Вдома', 'Готель', 'У подорожі', 'На природі'];
+const emptyTaxonomy: Taxonomy = { categories: [], tags: [], places: [], positions: [], locations: [] };
 
 function demoEntries(): Entry[] {
   const now = Date.now();
@@ -52,6 +58,10 @@ export default function Home() {
   const [rating, setRating] = useState(4);
   const [orgasms, setOrgasms] = useState(1);
   const [tags, setTags] = useState<string[]>([]);
+  const [places, setPlaces] = useState<string[]>([]);
+  const [positions, setPositions] = useState<string[]>([]);
+  const [locations, setLocations] = useState<string[]>([]);
+  const [taxonomy, setTaxonomy] = useState<Taxonomy>(emptyTaxonomy);
   const [note, setNote] = useState('');
   const [details, setDetails] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -74,6 +84,8 @@ export default function Home() {
     setShowDemoNote(localStorage.getItem('metrika-demo-note') !== 'hidden');
     const storedGoals = localStorage.getItem('metrika-goals');
     if (storedGoals) setGoals(JSON.parse(storedGoals));
+    const storedTaxonomy = localStorage.getItem('metrika-taxonomy');
+    if (storedTaxonomy) setTaxonomy({...emptyTaxonomy,...JSON.parse(storedTaxonomy)});
     setReady(true);
   }, []);
 
@@ -101,18 +113,19 @@ export default function Home() {
   const saveEntry = useCallback((input?: { mood?: number; type?: string; note?: string; tags?: string[]; duration?: number; rating?: number; orgasms?: number }) => {
     const targetId = input ? null : editingId;
     if (targetId) {
-      setEntries(current => { const next = current.map(item => item.id === targetId ? { ...item, mood, type, duration, rating, orgasms, note, tags } : item); localStorage.setItem('metrika-entries', JSON.stringify(next)); return next; });
+      setEntries(current => { const next = current.map(item => item.id === targetId ? { ...item, mood, type, duration, rating, orgasms, note, tags, places, positions, locations } : item); localStorage.setItem('metrika-entries', JSON.stringify(next)); return next; });
       setEditingId(null); setDialogOpen(false); setCanUndoSave(false); setSaved(true); window.setTimeout(() => setSaved(false), 4000);
-      return { ...entries.find(item => item.id === targetId)!, mood, type, duration, rating, orgasms, note, tags };
+      return { ...entries.find(item => item.id === targetId)!, mood, type, duration, rating, orgasms, note, tags, places, positions, locations };
     }
-    const record: Entry = { id: crypto.randomUUID(), mood: input?.mood ?? mood, type: input?.type ?? type, duration: input?.duration ?? duration, rating: input?.rating ?? rating, orgasms: input?.orgasms ?? orgasms, note: input?.note ?? note, tags: input?.tags ?? tags, time: new Intl.DateTimeFormat('uk-UA', { hour: '2-digit', minute: '2-digit' }).format(new Date()), createdAt: new Date().toISOString() };
+    const record: Entry = { id: crypto.randomUUID(), mood: input?.mood ?? mood, type: input?.type ?? type, duration: input?.duration ?? duration, rating: input?.rating ?? rating, orgasms: input?.orgasms ?? orgasms, note: input?.note ?? note, tags: input?.tags ?? tags, places, positions, locations, time: new Intl.DateTimeFormat('uk-UA', { hour: '2-digit', minute: '2-digit' }).format(new Date()), createdAt: new Date().toISOString() };
     setEntries(current => { const next = [record, ...current.filter(item => !item.id.startsWith('demo-'))]; localStorage.setItem('metrika-entries', JSON.stringify(next)); return next; });
-    setDialogOpen(false); setCanUndoSave(true); setSaved(true); setNote(''); setTags([]); setDetails(false); window.setTimeout(() => setSaved(false), 4000);
+    setDialogOpen(false); setCanUndoSave(true); setSaved(true); setNote(''); setTags([]); setPlaces([]); setPositions([]); setLocations([]); setDetails(false); window.setTimeout(() => setSaved(false), 4000);
     return record;
-  }, [duration, editingId, entries, mood, note, orgasms, rating, tags, type]);
+  }, [duration, editingId, entries, locations, mood, note, orgasms, places, positions, rating, tags, type]);
 
-  const openNewEntry = () => { setEditingId(null); setMood(8); setType('Звичайна'); setDuration(20); setRating(4); setOrgasms(1); setTags([]); setNote(''); setDetails(false); setDialogOpen(true); };
-  const editEntry = (entry: Entry) => { setEditingId(entry.id); setMood(entry.mood); setType(entry.type); setDuration(entry.duration ?? 20); setRating(entry.rating ?? 4); setOrgasms(entry.orgasms ?? 1); setTags(entry.tags); setNote(entry.note); setDetails(Boolean(entry.note || entry.tags.length)); setDialogOpen(true); };
+  const openNewEntry = () => { setEditingId(null); setMood(8); setType('Звичайна'); setDuration(20); setRating(4); setOrgasms(1); setTags([]); setPlaces([]); setPositions([]); setLocations([]); setNote(''); setDetails(false); setDialogOpen(true); };
+  const editEntry = (entry: Entry) => { setEditingId(entry.id); setMood(entry.mood); setType(entry.type); setDuration(entry.duration ?? 20); setRating(entry.rating ?? 4); setOrgasms(entry.orgasms ?? 1); setTags(entry.tags); setPlaces(entry.places??[]); setPositions(entry.positions??[]); setLocations(entry.locations??[]); setNote(entry.note); setDetails(Boolean(entry.note || entry.tags.length || entry.places?.length || entry.positions?.length || entry.locations?.length)); setDialogOpen(true); };
+  const updateTaxonomy = (group: keyof Taxonomy, values: string[]) => { const next={...taxonomy,[group]:values}; setTaxonomy(next); localStorage.setItem('metrika-taxonomy',JSON.stringify(next)); };
   const duplicateEntry = (entry: Entry) => { const now = new Date(); const copy: Entry = { ...entry, id: crypto.randomUUID(), createdAt: now.toISOString(), time: new Intl.DateTimeFormat('uk-UA', { hour: '2-digit', minute: '2-digit' }).format(now) }; setEntries(current => { const next=[copy,...current.filter(item=>!item.id.startsWith('demo-'))]; localStorage.setItem('metrika-entries',JSON.stringify(next)); return next; }); setCanUndoSave(true); setSaved(true); window.setTimeout(()=>setSaved(false),4000); };
   const deleteEntry = (entry: Entry) => { setEntries(current => { const index=current.findIndex(item=>item.id===entry.id); const next=current.filter(item=>item.id!==entry.id); localStorage.setItem('metrika-entries',JSON.stringify(next)); setDeleted({entry,index}); return next; }); };
   const undoDelete = () => { if (!deleted) return; setEntries(current => { const next=[...current]; next.splice(Math.max(0,deleted.index),0,deleted.entry); localStorage.setItem('metrika-entries',JSON.stringify(next)); return next; }); setDeleted(null); };
@@ -175,12 +188,12 @@ export default function Home() {
         <DialogContent className="entry-dialog">
           <DialogHeader><span className="dialog-kicker">{editingId ? 'Редагування запису' : 'Нова соло-сесія · приватно'}</span><DialogTitle>{editingId ? 'Оновити деталі' : 'Як усе пройшло?'}</DialogTitle><DialogDescription>{editingId ? 'Зміни одразу оновлять статистику, календар і цілі.' : 'Короткий запис для чесної статистики. Деталі можна пропустити.'}</DialogDescription></DialogHeader>
           <div className="entry-form">
-            <div className="field-block"><label>Що записуємо?</label><div className="type-cards">{typeOptions.map(item => <button key={item.id} onClick={() => setType(item.id)} className={type === item.id ? 'selected' : ''}><item.icon /><strong>{item.id}</strong><small>{item.hint}</small>{type === item.id && <Check className="selected-check" />}</button>)}</div></div>
+            <div className="field-block"><label>Основна категорія</label><div className="type-cards">{typeOptions.map(item => <button key={item.id} onClick={() => setType(item.id)} className={type === item.id ? 'selected' : ''}><item.icon /><strong>{item.id}</strong><small>{item.hint}</small>{type === item.id && <Check className="selected-check" />}</button>)}</div><AttributePicker compact label="Власні категорії" hint="одна категорія" icon={Sparkles} options={taxonomy.categories} custom={taxonomy.categories} selected={taxonomy.categories.includes(type)?[type]:[]} onToggle={value=>setType(value)} onAdd={value=>updateTaxonomy('categories',[...taxonomy.categories,value])} onRename={(oldValue,newValue)=>{updateTaxonomy('categories',taxonomy.categories.map(item=>item===oldValue?newValue:item));if(type===oldValue)setType(newValue)}} onRemove={value=>{updateTaxonomy('categories',taxonomy.categories.filter(item=>item!==value));if(type===value)setType('Звичайна')}} /></div>
             <div className="core-fields"><div className="field-block compact-field"><div className="mood-label"><label>Тривалість</label><strong>{duration}<small> хв</small></strong></div><div className="quick-values">{[5,15,25,45].map(value => <button key={value} className={duration === value ? 'selected' : ''} onClick={() => setDuration(value)}>{value}</button>)}</div><Slider value={[duration]} min={1} max={90} step={1} onValueChange={(value) => setDuration(Array.isArray(value) ? value[0] : value)} /></div><div className="field-block compact-field"><div className="mood-label"><label>Оргазми</label><strong>{orgasms}</strong></div><div className="stepper"><button onClick={() => setOrgasms(value => Math.max(0, value - 1))}>−</button><span>{orgasms}</span><button onClick={() => setOrgasms(value => Math.min(20, value + 1))}>+</button></div></div></div>
             <div className="field-block rating-block"><div className="mood-label"><label>Задоволення</label><strong>{rating}<small>/5</small></strong></div><div className="rating-stars">{[1,2,3,4,5].map(value => <button key={value} onClick={() => setRating(value)} aria-label={`${value} з 5`} className={value <= rating ? 'selected' : ''}><Star /></button>)}</div></div>
             <div className="field-block mood-block"><div className="mood-label"><div><label>Як ти почуваєшся після?</label><span>{mood <= 4 ? 'Не дуже' : mood <= 7 ? 'Нормально' : 'Чудово'}</span></div><strong>{mood}<small>/10</small></strong></div><Slider value={[mood]} min={1} max={10} step={1} onValueChange={(value) => setMood(Array.isArray(value) ? value[0] : value)} /><div className="scale-labels"><span>важко</span><span>супер</span></div></div>
             <button className="details-toggle" onClick={() => setDetails(value => !value)}>{details ? <ChevronLeft /> : <Plus />}{details ? 'Сховати деталі' : 'Додати контекст'}<span>необов’язково</span></button>
-            {details && <div className="optional-details"><div className="field-block"><label>Контекст</label><div className="tag-options">{tagOptions.map(item => <button key={item} onClick={() => setTags(current => current.includes(item) ? current.filter(tag => tag !== item) : [...current, item])} className={tags.includes(item) ? 'selected' : ''}>{item}</button>)}</div></div><div className="field-block"><label htmlFor="entry-note">Приватна нотатка</label><Textarea id="entry-note" value={note} onChange={event => setNote(event.target.value)} placeholder="Що варто запам’ятати?" maxLength={300} /></div></div>}
+            {details && <div className="optional-details"><AttributePicker label="Теги" icon={Tag} options={[...tagOptions,...taxonomy.tags]} custom={taxonomy.tags} selected={tags} onToggle={value=>setTags(current=>current.includes(value)?current.filter(item=>item!==value):[...current,value])} onAdd={value=>updateTaxonomy('tags',[...taxonomy.tags,value])} onRename={(oldValue,newValue)=>{updateTaxonomy('tags',taxonomy.tags.map(item=>item===oldValue?newValue:item));setTags(current=>current.map(item=>item===oldValue?newValue:item))}} onRemove={value=>{updateTaxonomy('tags',taxonomy.tags.filter(item=>item!==value));setTags(current=>current.filter(item=>item!==value))}} /><AttributePicker label="Місця" icon={MapPin} hint="конкретне місце" options={[...placeOptions,...taxonomy.places]} custom={taxonomy.places} selected={places} onToggle={value=>setPlaces(current=>current.includes(value)?current.filter(item=>item!==value):[...current,value])} onAdd={value=>updateTaxonomy('places',[...taxonomy.places,value])} onRename={(a,b)=>{updateTaxonomy('places',taxonomy.places.map(x=>x===a?b:x));setPlaces(x=>x.map(v=>v===a?b:v))}} onRemove={value=>{updateTaxonomy('places',taxonomy.places.filter(x=>x!==value));setPlaces(x=>x.filter(v=>v!==value))}} /><AttributePicker label="Пози" icon={PersonStanding} options={[...positionOptions,...taxonomy.positions]} custom={taxonomy.positions} selected={positions} onToggle={value=>setPositions(current=>current.includes(value)?current.filter(item=>item!==value):[...current,value])} onAdd={value=>updateTaxonomy('positions',[...taxonomy.positions,value])} onRename={(a,b)=>{updateTaxonomy('positions',taxonomy.positions.map(x=>x===a?b:x));setPositions(x=>x.map(v=>v===a?b:v))}} onRemove={value=>{updateTaxonomy('positions',taxonomy.positions.filter(x=>x!==value));setPositions(x=>x.filter(v=>v!==value))}} /><AttributePicker label="Локації" icon={LocateFixed} hint="загальний контекст" options={[...locationOptions,...taxonomy.locations]} custom={taxonomy.locations} selected={locations} onToggle={value=>setLocations(current=>current.includes(value)?current.filter(item=>item!==value):[...current,value])} onAdd={value=>updateTaxonomy('locations',[...taxonomy.locations,value])} onRename={(a,b)=>{updateTaxonomy('locations',taxonomy.locations.map(x=>x===a?b:x));setLocations(x=>x.map(v=>v===a?b:v))}} onRemove={value=>{updateTaxonomy('locations',taxonomy.locations.filter(x=>x!==value));setLocations(x=>x.filter(v=>v!==value))}} /><div className="field-block"><label htmlFor="entry-note">Приватна нотатка</label><Textarea id="entry-note" value={note} onChange={event => setNote(event.target.value)} placeholder="Що варто запам’ятати?" maxLength={300} /></div></div>}
             <Button className="save-button" size="lg" onClick={() => saveEntry()}>{editingId ? <Check /> : <LockKeyhole />} {editingId ? 'Зберегти зміни' : 'Зберегти приватно'}</Button>
             <p className="keyboard-hint"><span>N</span> відкриває новий запис із будь-якого екрана</p>
           </div>
@@ -207,6 +220,14 @@ function TodayView({ entries, stats, ready, openLog, openTimer, openInsights, sa
       <article className="insight-card"><div className="insight-top"><div className="insight-icon"><Sparkles /></div><span>На основі {entries.length} записів</span></div><span className="section-kicker">Помічено для тебе</span><h3>{stats.eveningShare >= 50 ? 'Вечір — твій природний ритм' : 'Твій ритм досить гнучкий'}</h3><p>{stats.eveningShare >= 50 ? `${stats.eveningShare}% активностей трапляються після 20:00. Це патерн, не оцінка.` : 'Час активності змінюється — поки зарано робити сильні висновки.'}</p><button onClick={openInsights}>Розібрати патерн <ChevronRight /></button></article>
     </section>
   </>;
+}
+
+function AttributePicker({label,hint,icon:Icon,options,custom,selected,onToggle,onAdd,onRename,onRemove,compact=false}:{label:string;hint?:string;icon:LucideIcon;options:string[];custom:string[];selected:string[];onToggle:(value:string)=>void;onAdd:(value:string)=>void;onRename:(oldValue:string,newValue:string)=>void;onRemove:(value:string)=>void;compact?:boolean}){
+  const [draft,setDraft]=useState(''); const [editing,setEditing]=useState<string|null>(null); const [editValue,setEditValue]=useState('');
+  const unique=[...new Set(options)];
+  const add=()=>{const value=draft.trim();if(!value||unique.some(item=>item.toLocaleLowerCase('uk-UA')===value.toLocaleLowerCase('uk-UA')))return;onAdd(value);setDraft('')};
+  const rename=()=>{const value=editValue.trim();if(!editing||!value||unique.some(item=>item!==editing&&item.toLocaleLowerCase('uk-UA')===value.toLocaleLowerCase('uk-UA')))return;onRename(editing,value);setEditing(null);setEditValue('')};
+  return <section className={`attribute-picker ${compact?'compact':''}`}><div className="attribute-head"><span><Icon/>{label}</span><small>{hint??'можна вибрати кілька'}</small></div><div className="attribute-options">{unique.map(item=><div className={`attribute-chip ${selected.includes(item)?'selected':''}`} key={item}><button type="button" onClick={()=>onToggle(item)} aria-pressed={selected.includes(item)}>{selected.includes(item)&&<Check/>}{item}</button>{custom.includes(item)&&<button type="button" className="edit-choice" aria-label={`Редагувати ${item}`} onClick={()=>{setEditing(item);setEditValue(item)}}><Edit3/></button>}</div>)}</div>{editing&&<div className="attribute-editor"><input autoFocus value={editValue} onChange={event=>setEditValue(event.target.value)} onKeyDown={event=>event.key==='Enter'&&rename()} aria-label={`Нова назва для ${editing}`}/><button type="button" onClick={rename}><Check/>Зберегти</button><button type="button" className="delete-choice" onClick={()=>{onRemove(editing);setEditing(null)}}><Trash2/>Видалити</button></div>}<div className="attribute-add"><input value={draft} onChange={event=>setDraft(event.target.value)} onKeyDown={event=>event.key==='Enter'&&add()} placeholder={`Додати: ${label.toLocaleLowerCase('uk-UA')}`} maxLength={28}/><button type="button" onClick={add} disabled={!draft.trim()}><Plus/>Додати</button></div></section>
 }
 
 function HistoryView({ entries, openLog, onEdit, onDuplicate, onDelete }: { entries: Entry[]; openLog: () => void; onEdit: (entry: Entry) => void; onDuplicate: (entry: Entry) => void; onDelete: (entry: Entry) => void }) {
