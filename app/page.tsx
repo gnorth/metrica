@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity, BarChart3, CalendarDays, Check, ChevronLeft, ChevronRight, CircleUserRound,
   Clock3, Flame, Heart, History, LayoutDashboard, LockKeyhole, MoreHorizontal, Pause, Play, Plus,
-  RotateCcw, Search, Settings, ShieldCheck, Sparkles, Star, Target, Timer, X, Zap,
+  Copy, Edit3, RotateCcw, Search, Settings, ShieldCheck, Sparkles, Star, Target, Timer, Trash2, X, Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -55,6 +55,9 @@ export default function Home() {
   const [note, setNote] = useState('');
   const [details, setDetails] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [canUndoSave, setCanUndoSave] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleted, setDeleted] = useState<{ entry: Entry; index: number } | null>(null);
   const [showDemoNote, setShowDemoNote] = useState(true);
   const [goalOpen, setGoalOpen] = useState(false);
   const [goalTitle, setGoalTitle] = useState('Усвідомлений час для себе');
@@ -94,14 +97,26 @@ export default function Home() {
   }, [entries]);
 
   const saveEntry = useCallback((input?: { mood?: number; type?: string; note?: string; tags?: string[]; duration?: number; rating?: number; orgasms?: number }) => {
+    const targetId = input ? null : editingId;
+    if (targetId) {
+      setEntries(current => { const next = current.map(item => item.id === targetId ? { ...item, mood, type, duration, rating, orgasms, note, tags } : item); localStorage.setItem('metrika-entries', JSON.stringify(next)); return next; });
+      setEditingId(null); setDialogOpen(false); setCanUndoSave(false); setSaved(true); window.setTimeout(() => setSaved(false), 4000);
+      return { ...entries.find(item => item.id === targetId)!, mood, type, duration, rating, orgasms, note, tags };
+    }
     const record: Entry = { id: crypto.randomUUID(), mood: input?.mood ?? mood, type: input?.type ?? type, duration: input?.duration ?? duration, rating: input?.rating ?? rating, orgasms: input?.orgasms ?? orgasms, note: input?.note ?? note, tags: input?.tags ?? tags, time: new Intl.DateTimeFormat('uk-UA', { hour: '2-digit', minute: '2-digit' }).format(new Date()), createdAt: new Date().toISOString() };
     setEntries(current => { const next = [record, ...current.filter(item => !item.id.startsWith('demo-'))]; localStorage.setItem('metrika-entries', JSON.stringify(next)); return next; });
-    setDialogOpen(false); setSaved(true); setNote(''); setTags([]); setDetails(false); window.setTimeout(() => setSaved(false), 4000);
+    setDialogOpen(false); setCanUndoSave(true); setSaved(true); setNote(''); setTags([]); setDetails(false); window.setTimeout(() => setSaved(false), 4000);
     return record;
-  }, [duration, mood, note, orgasms, rating, tags, type]);
+  }, [duration, editingId, entries, mood, note, orgasms, rating, tags, type]);
+
+  const openNewEntry = () => { setEditingId(null); setMood(8); setType('Звичайна'); setDuration(20); setRating(4); setOrgasms(1); setTags([]); setNote(''); setDetails(false); setDialogOpen(true); };
+  const editEntry = (entry: Entry) => { setEditingId(entry.id); setMood(entry.mood); setType(entry.type); setDuration(entry.duration ?? 20); setRating(entry.rating ?? 4); setOrgasms(entry.orgasms ?? 1); setTags(entry.tags); setNote(entry.note); setDetails(Boolean(entry.note || entry.tags.length)); setDialogOpen(true); };
+  const duplicateEntry = (entry: Entry) => { const now = new Date(); const copy: Entry = { ...entry, id: crypto.randomUUID(), createdAt: now.toISOString(), time: new Intl.DateTimeFormat('uk-UA', { hour: '2-digit', minute: '2-digit' }).format(now) }; setEntries(current => { const next=[copy,...current.filter(item=>!item.id.startsWith('demo-'))]; localStorage.setItem('metrika-entries',JSON.stringify(next)); return next; }); setCanUndoSave(true); setSaved(true); window.setTimeout(()=>setSaved(false),4000); };
+  const deleteEntry = (entry: Entry) => { setEntries(current => { const index=current.findIndex(item=>item.id===entry.id); const next=current.filter(item=>item.id!==entry.id); localStorage.setItem('metrika-entries',JSON.stringify(next)); setDeleted({entry,index}); return next; }); };
+  const undoDelete = () => { if (!deleted) return; setEntries(current => { const next=[...current]; next.splice(Math.max(0,deleted.index),0,deleted.entry); localStorage.setItem('metrika-entries',JSON.stringify(next)); return next; }); setDeleted(null); };
 
   const finishTimer = () => {
-    setTimerRunning(false); setTimerOpen(false); setDuration(Math.max(1, Math.round(timerSeconds / 60))); setDialogOpen(true);
+    setTimerRunning(false); setTimerOpen(false); setEditingId(null); setDuration(Math.max(1, Math.round(timerSeconds / 60))); setDialogOpen(true);
   };
 
   const undoLast = () => {
@@ -144,19 +159,20 @@ export default function Home() {
 
           {showDemoNote && entries.some(item => item.id.startsWith('demo-')) && <div className="demo-note"><Sparkles /><span><strong>Тут є демо-дані,</strong> щоб ти одразу побачив користь. Перший запис замінить їх твоїми.</span><button onClick={() => setShowDemoNote(false)} aria-label="Закрити"><X /></button></div>}
 
-          {view === 'today' && <TodayView entries={entries} stats={stats} ready={ready} openLog={() => setDialogOpen(true)} openTimer={() => setTimerOpen(true)} saved={saved} />}
-          {view === 'history' && <HistoryView entries={entries} openLog={() => setDialogOpen(true)} />}
-          {view === 'calendar' && <CalendarView entries={entries} openLog={() => setDialogOpen(true)} />}
+          {view === 'today' && <TodayView entries={entries} stats={stats} ready={ready} openLog={openNewEntry} openTimer={() => setTimerOpen(true)} saved={saved} />}
+          {view === 'history' && <HistoryView entries={entries} openLog={openNewEntry} onEdit={editEntry} onDuplicate={duplicateEntry} onDelete={deleteEntry} />}
+          {view === 'calendar' && <CalendarView entries={entries} openLog={openNewEntry} />}
           {view === 'goals' && <GoalsView entries={entries} goals={goals} openGoal={() => setGoalOpen(true)} />}
           {view === 'insights' && <InsightsView entries={entries} stats={stats} />}
         </section>
       </div>
 
-      {saved && <div className="save-toast" role="status"><span className="toast-check"><Check /></span><div><strong>Запис збережено</strong><small>Статистику вже оновлено</small></div><button onClick={undoLast}><RotateCcw /> Скасувати</button></div>}
+      {saved && <div className="save-toast" role="status"><span className="toast-check"><Check /></span><div><strong>Запис збережено</strong><small>Статистику вже оновлено</small></div>{canUndoSave && <button onClick={undoLast}><RotateCcw /> Скасувати</button>}</div>}
+      {deleted && <div className="save-toast delete-toast" role="status"><span className="toast-check"><Trash2 /></span><div><strong>Запис видалено</strong><small>Його можна повернути</small></div><button onClick={undoDelete}><RotateCcw /> Скасувати</button></div>}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(open)=>{setDialogOpen(open);if(!open)setEditingId(null)}}>
         <DialogContent className="entry-dialog">
-          <DialogHeader><span className="dialog-kicker">Нова соло-сесія · приватно</span><DialogTitle>Як усе пройшло?</DialogTitle><DialogDescription>Короткий запис для чесної статистики. Деталі можна пропустити.</DialogDescription></DialogHeader>
+          <DialogHeader><span className="dialog-kicker">{editingId ? 'Редагування запису' : 'Нова соло-сесія · приватно'}</span><DialogTitle>{editingId ? 'Оновити деталі' : 'Як усе пройшло?'}</DialogTitle><DialogDescription>{editingId ? 'Зміни одразу оновлять статистику, календар і цілі.' : 'Короткий запис для чесної статистики. Деталі можна пропустити.'}</DialogDescription></DialogHeader>
           <div className="entry-form">
             <div className="field-block"><label>Що записуємо?</label><div className="type-cards">{typeOptions.map(item => <button key={item.id} onClick={() => setType(item.id)} className={type === item.id ? 'selected' : ''}><item.icon /><strong>{item.id}</strong><small>{item.hint}</small>{type === item.id && <Check className="selected-check" />}</button>)}</div></div>
             <div className="core-fields"><div className="field-block compact-field"><div className="mood-label"><label>Тривалість</label><strong>{duration}<small> хв</small></strong></div><div className="quick-values">{[5,15,25,45].map(value => <button key={value} className={duration === value ? 'selected' : ''} onClick={() => setDuration(value)}>{value}</button>)}</div><Slider value={[duration]} min={1} max={90} step={1} onValueChange={(value) => setDuration(Array.isArray(value) ? value[0] : value)} /></div><div className="field-block compact-field"><div className="mood-label"><label>Оргазми</label><strong>{orgasms}</strong></div><div className="stepper"><button onClick={() => setOrgasms(value => Math.max(0, value - 1))}>−</button><span>{orgasms}</span><button onClick={() => setOrgasms(value => Math.min(20, value + 1))}>+</button></div></div></div>
@@ -164,7 +180,7 @@ export default function Home() {
             <div className="field-block mood-block"><div className="mood-label"><div><label>Як ти почуваєшся після?</label><span>{mood <= 4 ? 'Не дуже' : mood <= 7 ? 'Нормально' : 'Чудово'}</span></div><strong>{mood}<small>/10</small></strong></div><Slider value={[mood]} min={1} max={10} step={1} onValueChange={(value) => setMood(Array.isArray(value) ? value[0] : value)} /><div className="scale-labels"><span>важко</span><span>супер</span></div></div>
             <button className="details-toggle" onClick={() => setDetails(value => !value)}>{details ? <ChevronLeft /> : <Plus />}{details ? 'Сховати деталі' : 'Додати контекст'}<span>необов’язково</span></button>
             {details && <div className="optional-details"><div className="field-block"><label>Контекст</label><div className="tag-options">{tagOptions.map(item => <button key={item} onClick={() => setTags(current => current.includes(item) ? current.filter(tag => tag !== item) : [...current, item])} className={tags.includes(item) ? 'selected' : ''}>{item}</button>)}</div></div><div className="field-block"><label htmlFor="entry-note">Приватна нотатка</label><Textarea id="entry-note" value={note} onChange={event => setNote(event.target.value)} placeholder="Що варто запам’ятати?" maxLength={300} /></div></div>}
-            <Button className="save-button" size="lg" onClick={() => saveEntry()}><LockKeyhole /> Зберегти приватно</Button>
+            <Button className="save-button" size="lg" onClick={() => saveEntry()}>{editingId ? <Check /> : <LockKeyhole />} {editingId ? 'Зберегти зміни' : 'Зберегти приватно'}</Button>
             <p className="keyboard-hint"><span>N</span> відкриває новий запис із будь-якого екрана</p>
           </div>
         </DialogContent>
@@ -192,8 +208,10 @@ function TodayView({ entries, stats, ready, openLog, openTimer, saved }: { entri
   </>;
 }
 
-function HistoryView({ entries, openLog }: { entries: Entry[]; openLog: () => void }) {
-  return <section className="history-surface"><div className="history-toolbar"><div className="search-box"><Search /><input aria-label="Пошук в історії" placeholder="Пошук у нотатках і тегах" /></div><div className="history-filters">{['Усі','Edging','Швидкі','Чуттєві'].map((item,index) => <button className={index === 0 ? 'active' : ''} key={item}>{item}</button>)}</div><Button onClick={openLog}><Plus /> Нова сесія</Button></div><div className="history-list">{entries.map((entry, index) => <article className="history-entry" key={entry.id}><div className="date-tile"><strong>{new Date(entry.createdAt).getDate()}</strong><span>{new Intl.DateTimeFormat('uk-UA', { month: 'short' }).format(new Date(entry.createdAt))}</span></div><div className="history-icon"><Heart /></div><div className="history-copy"><strong>{entry.type} <em className="duration-chip">{entry.duration ?? 20} хв</em></strong><span><Clock3 /> {entry.time}{entry.tags.map(tag => <em key={tag}>#{tag.toLowerCase().replaceAll(' ','_')}</em>)}</span>{entry.note && <p>«{entry.note}»</p>}</div><div className="session-meta"><span><Zap /> {entry.orgasms ?? 1}</span><span><Star /> {entry.rating ?? 4}</span></div><button className="more-button" aria-label="Більше дій"><MoreHorizontal /></button>{index === 0 && <span className="latest-label">остання</span>}</article>)}</div></section>;
+function HistoryView({ entries, openLog, onEdit, onDuplicate, onDelete }: { entries: Entry[]; openLog: () => void; onEdit: (entry: Entry) => void; onDuplicate: (entry: Entry) => void; onDelete: (entry: Entry) => void }) {
+  const [query,setQuery]=useState(''); const [filter,setFilter]=useState('Усі'); const [menu,setMenu]=useState<string|null>(null);
+  const filtered=entries.filter(entry => (filter==='Усі'||entry.type===filter) && `${entry.type} ${entry.note} ${entry.tags.join(' ')}`.toLowerCase().includes(query.toLowerCase()));
+  return <section className="history-surface"><div className="history-toolbar"><div className="search-box"><Search /><input value={query} onChange={event=>setQuery(event.target.value)} aria-label="Пошук в історії" placeholder="Пошук у нотатках і тегах" /></div><div className="history-filters">{['Усі','Edging','Швидка','Чуттєва'].map(item => <button onClick={()=>setFilter(item)} className={filter===item?'active':''} key={item}>{item}</button>)}</div><Button onClick={openLog}><Plus /> Нова сесія</Button></div><div className="history-list">{filtered.map((entry, index) => <article className="history-entry" key={entry.id}><div className="date-tile"><strong>{new Date(entry.createdAt).getDate()}</strong><span>{new Intl.DateTimeFormat('uk-UA', { month: 'short' }).format(new Date(entry.createdAt))}</span></div><div className="history-icon"><Heart /></div><button className="history-copy history-open" onClick={()=>onEdit(entry)}><strong>{entry.type} <em className="duration-chip">{entry.duration ?? 20} хв</em></strong><span><Clock3 /> {entry.time}{entry.tags.map(tag => <em key={tag}>#{tag.toLowerCase().replaceAll(' ','_')}</em>)}</span>{entry.note && <p>«{entry.note}»</p>}</button><div className="session-meta"><span><Zap /> {entry.orgasms ?? 1}</span><span><Star /> {entry.rating ?? 4}</span></div><button className="more-button" onClick={()=>setMenu(menu===entry.id?null:entry.id)} aria-label="Більше дій"><MoreHorizontal /></button>{menu===entry.id&&<div className="entry-actions"><button onClick={()=>{onEdit(entry);setMenu(null)}}><Edit3/>Редагувати</button><button onClick={()=>{onDuplicate(entry);setMenu(null)}}><Copy/>Дублювати</button><button className="danger" onClick={()=>{onDelete(entry);setMenu(null)}}><Trash2/>Видалити</button></div>}{index === 0 && <span className="latest-label">остання</span>}</article>)}{!filtered.length&&<div className="history-empty"><Search/><strong>Нічого не знайдено</strong><span>Спробуй змінити пошук або фільтр.</span></div>}</div></section>;
 }
 
 function CalendarView({ entries, openLog }: { entries: Entry[]; openLog: () => void }) {
