@@ -175,7 +175,7 @@ export default function Home() {
 
           {showDemoNote && entries.some(item => item.id.startsWith('demo-')) && <div className="demo-note"><Sparkles /><span><strong>Тут є демо-дані,</strong> щоб ти одразу побачив користь. Перший запис замінить їх твоїми.</span><button onClick={() => {setShowDemoNote(false);localStorage.setItem('metrika-demo-note','hidden')}} aria-label="Більше не показувати"><X /></button></div>}
 
-          {view === 'today' && <TodayView entries={entries} stats={stats} ready={ready} openLog={openNewEntry} openTimer={() => setTimerOpen(true)} openInsights={() => nav('insights')} saved={saved} />}
+          {view === 'today' && <TodayView entries={entries} stats={stats} ready={ready} openLog={openNewEntry} openTimer={() => setTimerOpen(true)} openInsights={() => nav('insights')} openSession={openSession} editEntry={editEntry} saved={saved} />}
           {view === 'history' && <HistoryView entries={entries} openLog={openNewEntry} onOpen={openSession} onEdit={editEntry} onDuplicate={duplicateEntry} onDelete={deleteEntry} />}
           {view === 'calendar' && <CalendarView entries={entries} openLog={openNewEntry} onOpen={openSession} />}
           {view === 'goals' && <GoalsView entries={entries} goals={goals} openGoal={() => setGoalOpen(true)} />}
@@ -210,7 +210,7 @@ export default function Home() {
   );
 }
 
-function TodayView({ entries, stats, ready, openLog, openTimer, openInsights, saved }: { entries: Entry[]; stats: { avg: string; avgDuration: number; totalOrgasms: number; weekCount: number; streak: number; eveningShare: number }; ready: boolean; openLog: () => void; openTimer: () => void; openInsights: () => void; saved: boolean }) {
+function TodayView({ entries, stats, ready, openLog, openTimer, openInsights, openSession, editEntry, saved }: { entries: Entry[]; stats: { avg: string; avgDuration: number; totalOrgasms: number; weekCount: number; streak: number; eveningShare: number }; ready: boolean; openLog: () => void; openTimer: () => void; openInsights: () => void; openSession: (entry:Entry)=>void; editEntry:(entry:Entry)=>void; saved: boolean }) {
   const recent = entries.slice(0, 3);
   return <>
     <section className="hero-grid">
@@ -219,7 +219,7 @@ function TodayView({ entries, stats, ready, openLog, openTimer, openInsights, sa
     </section>
     <section className="stat-grid four" aria-label="Коротка статистика"><article className="stat-card"><span>Соло-сесій</span><strong>{ready ? entries.length : '—'}</strong><small>зафіксовано приватно</small></article><article className="stat-card"><span>Середній час</span><strong>{stats.avgDuration}<em> хв</em></strong><small>на одну сесію</small></article><article className="stat-card"><span>Оргазмів</span><strong>{stats.totalOrgasms}</strong><small>загалом</small></article><article className="stat-card"><span>Задоволення</span><strong>{stats.avg}<em>/5</em></strong><small>середня оцінка</small></article></section>
     <section className="content-grid">
-      <article className="timeline-card"><div className="title-row"><div><span className="section-kicker">Останнє</span><h3>Недавні сесії</h3></div><button onClick={() => document.querySelector<HTMLButtonElement>('.nav-item:nth-child(2)')?.click()}>Вся історія <ChevronRight /></button></div><div className="mini-timeline">{recent.map((item, index) => <div className="timeline-row" key={item.id}><span className={`timeline-dot tone-${Math.min(index + 1, 3)}`}><Heart /></span><div><strong>{item.type}</strong><small>{formatDay(item.createdAt)} · {item.time} · {item.duration ?? 20} хв{item.tags[0] ? ` · ${item.tags[0]}` : ''}</small></div><div className="mood-score">{item.rating ?? 4}<span>/5</span></div></div>)}</div></article>
+      <article className="timeline-card"><div className="title-row"><div><span className="section-kicker">Останнє</span><h3>Недавні сесії</h3></div><button onClick={() => document.querySelector<HTMLButtonElement>('.nav-item:nth-child(2)')?.click()}>Вся історія <ChevronRight /></button></div><div className="mini-timeline">{recent.map((item, index) => <div className="timeline-row" key={item.id}><span className={`timeline-dot tone-${Math.min(index + 1, 3)}`}><Heart /></span><button className="timeline-open" onClick={()=>openSession(item)}><strong>{item.type}</strong><small>{formatDay(item.createdAt)} · {item.time} · {item.duration ?? 20} хв{item.tags[0] ? ` · ${item.tags[0]}` : ''}</small></button><div className="mood-score">{item.rating ?? 4}<span>/5</span></div><button className="timeline-edit" onClick={()=>editEntry(item)} aria-label={`Редагувати ${item.type}`} title="Редагувати"><Edit3/></button></div>)}</div></article>
       <article className="insight-card"><div className="insight-top"><div className="insight-icon"><Sparkles /></div><span>На основі {entries.length} записів</span></div><span className="section-kicker">Помічено для тебе</span><h3>{stats.eveningShare >= 50 ? 'Вечір — твій природний ритм' : 'Твій ритм досить гнучкий'}</h3><p>{stats.eveningShare >= 50 ? `${stats.eveningShare}% активностей трапляються після 20:00. Це патерн, не оцінка.` : 'Час активності змінюється — поки зарано робити сильні висновки.'}</p><button onClick={openInsights}>Розібрати патерн <ChevronRight /></button></article>
     </section>
   </>;
