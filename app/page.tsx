@@ -238,6 +238,54 @@ function demoEntries(): Entry[] {
       tags: ['Без екранів'],
       createdAt: new Date(now - 7 * 86400000).toISOString(),
     },
+    {
+      id: 'demo-5', type: 'Звичайна', moodBefore: 4, mood: 7, duration: 18,
+      rating: 3, orgasms: 1, time: '07:35', note: 'Спокійний початок дня.',
+      tags: ['Без екранів'], places: ['Ліжко'], positions: ['Лежачи'], locations: ['Вдома'],
+      createdAt: new Date(now - 2 * 86400000).toISOString(),
+    },
+    {
+      id: 'demo-6', type: 'Чуттєва', moodBefore: 5, mood: 9, duration: 42,
+      rating: 5, orgasms: 2, time: '20:10', note: 'Без поспіху, з увагою до відчуттів.',
+      tags: ['Без екранів', 'Перед сном'], places: ['Душ'], positions: ['Стоячи'], locations: ['Вдома'],
+      createdAt: new Date(now - 4 * 86400000).toISOString(),
+    },
+    {
+      id: 'demo-7', type: 'Швидка', moodBefore: 7, mood: 8, duration: 7,
+      rating: 4, orgasms: 1, time: '13:05', note: '', tags: ['Зняти стрес'],
+      places: ['Крісло'], positions: ['Сидячи'], locations: ['Вдома'],
+      createdAt: new Date(now - 6 * 86400000).toISOString(),
+    },
+    {
+      id: 'demo-8', type: 'Edging', moodBefore: 6, mood: 8, duration: 51,
+      rating: 4, orgasms: 1, time: '22:30', note: 'Довша практика контролю.',
+      tags: ['Фантазія'], places: ['Ліжко'], positions: ['На боці'], locations: ['Вдома'],
+      createdAt: new Date(now - 10 * 86400000).toISOString(),
+    },
+    {
+      id: 'demo-9', type: 'Звичайна', moodBefore: 3, mood: 7, duration: 25,
+      rating: 4, orgasms: 1, time: '18:45', note: 'Допомогло перемкнутися після насиченого дня.',
+      tags: ['Зняти стрес'], places: ['Диван'], positions: ['Лежачи'], locations: ['Вдома'],
+      createdAt: new Date(now - 14 * 86400000).toISOString(),
+    },
+    {
+      id: 'demo-10', type: 'Чуттєва', moodBefore: 8, mood: 9, duration: 33,
+      rating: 5, orgasms: 1, time: '23:20', note: '', tags: ['Іграшка', 'Перед сном'],
+      places: ['Ліжко'], positions: ['На боці'], locations: ['Готель'],
+      createdAt: new Date(now - 18 * 86400000).toISOString(),
+    },
+    {
+      id: 'demo-11', type: 'Швидка', moodBefore: 5, mood: 6, duration: 9,
+      rating: 3, orgasms: 1, time: '11:50', note: '', tags: ['У душі'],
+      places: ['Душ'], positions: ['Стоячи'], locations: ['Вдома'],
+      createdAt: new Date(now - 22 * 86400000).toISOString(),
+    },
+    {
+      id: 'demo-12', type: 'Edging', moodBefore: 4, mood: 9, duration: 46,
+      rating: 5, orgasms: 2, time: '21:15', note: 'Хороший баланс темпу та контролю.',
+      tags: ['Без екранів', 'Фантазія'], places: ['Ліжко'], positions: ['Сидячи'], locations: ['Вдома'],
+      createdAt: new Date(now - 27 * 86400000).toISOString(),
+    },
   ];
 }
 
@@ -388,7 +436,23 @@ export default function Home() {
 
   useEffect(() => {
     const stored = localStorage.getItem('metrika-entries');
-    setEntries(stored ? JSON.parse(stored) : demoEntries());
+    const demos = demoEntries();
+    if (stored) {
+      const current = JSON.parse(stored) as Entry[];
+      const shouldExpandDemo = current.some((entry) => entry.id.startsWith('demo-')) &&
+        localStorage.getItem('metrika-demo-set') !== 'expanded-v1';
+      const next = shouldExpandDemo
+        ? [...current, ...demos.filter((demo) => !current.some((entry) => entry.id === demo.id))]
+        : current;
+      if (shouldExpandDemo) {
+        localStorage.setItem('metrika-entries', JSON.stringify(next));
+        localStorage.setItem('metrika-demo-set', 'expanded-v1');
+      }
+      setEntries(next);
+    } else {
+      setEntries(demos);
+      localStorage.setItem('metrika-demo-set', 'expanded-v1');
+    }
     setShowDemoNote(localStorage.getItem('metrika-demo-note') !== 'hidden');
     const storedGoals = localStorage.getItem('metrika-goals');
     if (storedGoals) setGoals(JSON.parse(storedGoals).map(normalizeGoal));
