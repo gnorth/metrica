@@ -4045,6 +4045,36 @@ function InsightsView({
   ).length;
   const edgingCount = scoped.filter((item) => item.type === 'Edging').length;
   const best = [...scoped].sort((a, b) => (b.rating ?? 4) - (a.rating ?? 4))[0];
+  const summarizeContext = (
+    readValues: (entry: Entry) => string[] | undefined,
+  ) => {
+    const values = new Map<string, { count: number; ratingTotal: number }>();
+    scoped.forEach((entry) => {
+      [...new Set(readValues(entry) ?? [])].forEach((value) => {
+        if (!value) return;
+        const current = values.get(value) ?? { count: 0, ratingTotal: 0 };
+        values.set(value, {
+          count: current.count + 1,
+          ratingTotal: current.ratingTotal + (entry.rating ?? 4),
+        });
+      });
+    });
+    return [...values.entries()]
+      .map(([label, value]) => ({
+        label,
+        count: value.count,
+        share: Math.round((value.count / Math.max(scoped.length, 1)) * 100),
+        rating: value.ratingTotal / value.count,
+      }))
+      .sort((a, b) => b.count - a.count || b.rating - a.rating)
+      .slice(0, 5);
+  };
+  const contextGroups = [
+    { label: 'Місця', title: 'Де саме', icon: MapPin, items: summarizeContext((entry) => entry.places) },
+    { label: 'Локації', title: 'Загальний контекст', icon: LocateFixed, items: summarizeContext((entry) => entry.locations) },
+    { label: 'Пози', title: 'Що обираєш', icon: PersonStanding, items: summarizeContext((entry) => entry.positions) },
+    { label: 'Теги', title: 'Що супроводжує', icon: Tag, items: summarizeContext((entry) => entry.tags) },
+  ];
   const heatRows = ['00–06', '06–12', '12–18', '18–24'];
   const heatCols = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
   const heatValues = heatRows.flatMap((_, period) =>
@@ -4694,6 +4724,50 @@ function InsightsView({
             ))}
           </div>
         </article>
+      </section>
+      <section className="context-analysis-section">
+        <div className="context-analysis-head">
+          <div>
+            <span className="section-kicker">Контекст сесій</span>
+            <h3>Що впливає на твій досвід</h3>
+          </div>
+          <p>Частота показує звичний вибір, а оцінка — як ти оцінив ці сесії.</p>
+        </div>
+        <div className="context-analysis-grid">
+          {contextGroups.map((group) => {
+            const ContextIcon = group.icon;
+            const maximum = Math.max(...group.items.map((item) => item.count), 1);
+            return (
+              <article className="context-analysis-card" key={group.label}>
+                <div className="context-card-head">
+                  <span><ContextIcon /></span>
+                  <div>
+                    <small>{group.label}</small>
+                    <strong>{group.title}</strong>
+                  </div>
+                </div>
+                {group.items.length ? (
+                  <div className="context-ranking">
+                    {group.items.map((item) => (
+                      <div key={item.label}>
+                        <div className="context-ranking-copy">
+                          <strong>{item.label}</strong>
+                          <span>{item.count} {item.count === 1 ? 'сесія' : item.count < 5 ? 'сесії' : 'сесій'} · {item.share}%</span>
+                        </div>
+                        <div className="context-ranking-score">
+                          <i><b style={{ width: `${(item.count / maximum) * 100}%` }} /></i>
+                          <strong>{item.rating.toFixed(1)}<small>/5</small></strong>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="context-empty">Ще немає даних за цей період</div>
+                )}
+              </article>
+            );
+          })}
+        </div>
       </section>
       <section className="deep-insights-grid">
         <article className="analytics-card golden-card">
