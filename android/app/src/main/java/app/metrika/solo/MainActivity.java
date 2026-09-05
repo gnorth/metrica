@@ -8,6 +8,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
 import android.webkit.CookieManager;
+import android.webkit.MimeTypeMap;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -16,7 +17,8 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
-import androidx.webkit.WebViewAssetLoader;
+import java.io.IOException;
+import java.io.InputStream;
 
 public final class MainActivity extends Activity {
     private static final String APP_URL =
@@ -61,16 +63,12 @@ public final class MainActivity extends Activity {
         cookies.setAcceptCookie(true);
         cookies.setAcceptThirdPartyCookies(webView, true);
 
-        WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
-                .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
-                .build();
-
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public WebResourceResponse shouldInterceptRequest(
                     WebView view,
                     WebResourceRequest request) {
-                return assetLoader.shouldInterceptRequest(request.getUrl());
+                return loadLocalAsset(request.getUrl());
             }
 
             @Override
@@ -116,6 +114,41 @@ public final class MainActivity extends Activity {
                 }
             }
         });
+    }
+
+    private WebResourceResponse loadLocalAsset(Uri uri) {
+        if (!"appassets.androidplatform.net".equalsIgnoreCase(uri.getHost())) {
+            return null;
+        }
+
+        String path = uri.getPath();
+        if (path == null || !path.startsWith("/assets/")) {
+            return null;
+        }
+
+        String assetPath = path.substring("/assets/".length());
+        try {
+            InputStream input = getAssets().open(assetPath);
+            return new WebResourceResponse(mimeTypeFor(assetPath), "UTF-8", input);
+        } catch (IOException ignored) {
+            return null;
+        }
+    }
+
+    private String mimeTypeFor(String path) {
+        if (path.endsWith(".js")) return "text/javascript";
+        if (path.endsWith(".css")) return "text/css";
+        if (path.endsWith(".html")) return "text/html";
+        if (path.endsWith(".svg")) return "image/svg+xml";
+        if (path.endsWith(".webmanifest")) return "application/manifest+json";
+
+        int dot = path.lastIndexOf('.');
+        if (dot >= 0 && dot < path.length() - 1) {
+            String detected = MimeTypeMap.getSingleton()
+                    .getMimeTypeFromExtension(path.substring(dot + 1));
+            if (detected != null) return detected;
+        }
+        return "application/octet-stream";
     }
 
     @Override
