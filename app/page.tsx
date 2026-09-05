@@ -1437,13 +1437,18 @@ export default function Home() {
             </p>
           </header>
           <div className="entry-form">
+            <div className="entry-section-title">
+              <span>1</span>
+              <div><strong>Тип і стан</strong><small>Два швидкі вибори для основного контексту</small></div>
+            </div>
             <div className="field-block">
               <label>Основна категорія</label>
               <div className="type-cards">
-                {typeOptions
-                  .filter(
-                    (item) => !archivedTaxonomy.categories.includes(item.id),
-                  )
+                {[
+                  ...typeOptions,
+                  ...taxonomy.categories.map((id) => ({ id, icon: Sparkles, hint: 'Власна категорія' })),
+                ]
+                  .filter((item) => !archivedTaxonomy.categories.includes(item.id))
                   .map((item) => (
                     <button
                       key={item.id}
@@ -1457,29 +1462,25 @@ export default function Home() {
                     </button>
                   ))}
               </div>
-              <AttributePicker
-                compact
-                label="Власні категорії"
-                hint="одна категорія"
-                icon={Sparkles}
-                options={taxonomy.categories.filter(
-                  (item) => !archivedTaxonomy.categories.includes(item),
-                )}
-                custom={taxonomy.categories}
-                selected={taxonomy.categories.includes(type) ? [type] : []}
-                onToggle={(value) => setType(value)}
-                onAdd={(value) =>
-                  updateTaxonomy('categories', [...taxonomy.categories, value])
-                }
-                onRename={(oldValue, newValue) => {
-                  replaceTaxonomyValue('categories', oldValue, newValue);
-                  if (type === oldValue) setType(newValue);
-                }}
-                onRemove={(value) => {
-                  archiveTaxonomyValue('categories', value);
-                  if (type === value) setType('Звичайна');
-                }}
-              />
+            </div>
+            <AttributePicker
+              label="Настрій"
+              hint="обери один стан"
+              icon={Heart}
+              options={[...defaultMoodOptions, ...taxonomy.moods].filter((item) => !archivedTaxonomy.moods.includes(item))}
+              custom={taxonomy.moods}
+              selected={moods}
+              editable={false}
+              onToggle={(value) =>
+                setMoods((current) => current.includes(value) ? [] : [value])
+              }
+              onAdd={() => undefined}
+              onRename={() => undefined}
+              onRemove={() => undefined}
+            />
+            <div className="entry-section-title">
+              <span>2</span>
+              <div><strong>Результат</strong><small>Тривалість, кульмінації та особиста оцінка</small></div>
             </div>
             <div className="core-fields">
               <div className="field-block compact-field">
@@ -1556,36 +1557,12 @@ export default function Home() {
                 ))}
               </div>
             </div>
-            <AttributePicker
-              label="Настрій"
-              hint="обери один стан"
-              icon={Heart}
-              options={[...defaultMoodOptions, ...taxonomy.moods]}
-              custom={taxonomy.moods}
-              selected={moods}
-              onToggle={(value) =>
-                setMoods((current) => current.includes(value) ? [] : [value])
-              }
-              onAdd={(value) =>
-                updateTaxonomy('moods', [...taxonomy.moods, value])
-              }
-              onRename={(oldValue, newValue) => {
-                replaceTaxonomyValue('moods', oldValue, newValue);
-                setMoods((current) =>
-                  current.map((item) => item === oldValue ? newValue : item),
-                );
-              }}
-              onRemove={(value) => {
-                archiveTaxonomyValue('moods', value);
-                setMoods((current) => current.filter((item) => item !== value));
-              }}
-            />
             <button
               className="details-toggle"
               onClick={() => setDetails((value) => !value)}
             >
               {details ? <ChevronLeft /> : <Plus />}
-              {details ? 'Сховати деталі' : 'Додати контекст'}
+              {details ? '3 · Сховати контекст' : '3 · Додати контекст'}
               <span>необов’язково</span>
             </button>
             {details && (
@@ -1593,9 +1570,10 @@ export default function Home() {
                 <AttributePicker
                   label="Теги"
                   icon={Tag}
-                  options={[...tagOptions, ...taxonomy.tags]}
+                  options={[...tagOptions, ...taxonomy.tags].filter((item) => !archivedTaxonomy.tags.includes(item))}
                   custom={taxonomy.tags}
                   selected={tags}
+                  editable={false}
                   onToggle={(value) =>
                     setTags((current) =>
                       current.includes(value)
@@ -1633,9 +1611,10 @@ export default function Home() {
                   label="Місця"
                   icon={MapPin}
                   hint="конкретне місце"
-                  options={[...placeOptions, ...taxonomy.places]}
+                  options={[...placeOptions, ...taxonomy.places].filter((item) => !archivedTaxonomy.places.includes(item))}
                   custom={taxonomy.places}
                   selected={places}
+                  editable={false}
                   onToggle={(value) =>
                     setPlaces((current) =>
                       current.includes(value)
@@ -1664,9 +1643,10 @@ export default function Home() {
                 <AttributePicker
                   label="Пози"
                   icon={PersonStanding}
-                  options={[...positionOptions, ...taxonomy.positions]}
+                  options={[...positionOptions, ...taxonomy.positions].filter((item) => !archivedTaxonomy.positions.includes(item))}
                   custom={taxonomy.positions}
                   selected={positions}
+                  editable={false}
                   onToggle={(value) =>
                     setPositions((current) =>
                       current.includes(value)
@@ -1696,9 +1676,10 @@ export default function Home() {
                   label="Локації"
                   icon={LocateFixed}
                   hint="загальний контекст"
-                  options={[...locationOptions, ...taxonomy.locations]}
+                  options={[...locationOptions, ...taxonomy.locations].filter((item) => !archivedTaxonomy.locations.includes(item))}
                   custom={taxonomy.locations}
                   selected={locations}
+                  editable={false}
                   onToggle={(value) =>
                     setLocations((current) =>
                       current.includes(value)
@@ -1736,6 +1717,19 @@ export default function Home() {
                 </div>
               </div>
             )}
+            <button
+              type="button"
+              className="entry-parameters-link"
+              onClick={() => {
+                setDialogOpen(false);
+                setEditingId(null);
+                nav('taxonomy');
+              }}
+            >
+              <FolderCog />
+              Керувати параметрами сесії
+              <ChevronRight />
+            </button>
             <Button
               className="save-button"
               size="lg"
@@ -2357,6 +2351,7 @@ function AttributePicker({
   onRename,
   onRemove,
   compact = false,
+  editable = true,
 }: {
   label: string;
   hint?: string;
@@ -2369,6 +2364,7 @@ function AttributePicker({
   onRename: (oldValue: string, newValue: string) => void;
   onRemove: (value: string) => void;
   compact?: boolean;
+  editable?: boolean;
 }) {
   const [draft, setDraft] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
@@ -2426,7 +2422,7 @@ function AttributePicker({
               {selected.includes(item) && <Check />}
               {item}
             </button>
-            {custom.includes(item) && (
+            {editable && custom.includes(item) && (
               <button
                 type="button"
                 className="edit-choice"
@@ -2442,7 +2438,7 @@ function AttributePicker({
           </div>
         ))}
       </div>
-      {editing && (
+      {editable && editing && (
         <div className="attribute-editor">
           <input
             autoFocus
@@ -2468,7 +2464,7 @@ function AttributePicker({
           </button>
         </div>
       )}
-      <div className="attribute-add">
+      {editable && <div className="attribute-add">
         <input
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
@@ -2480,7 +2476,7 @@ function AttributePicker({
           <Plus />
           Додати
         </button>
-      </div>
+      </div>}
     </section>
   );
 }
