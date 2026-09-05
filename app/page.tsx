@@ -11,8 +11,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 
-type View = 'today' | 'history' | 'insights';
+type View = 'today' | 'history' | 'calendar' | 'goals' | 'insights';
 type Entry = { id: string; type: string; mood: number; duration: number; rating: number; orgasms: number; time: string; note: string; tags: string[]; createdAt: string };
+type Goal = { id: string; title: string; metric: 'sessions' | 'minutes'; target: number; period: 'week' | 'month' };
 declare global { interface Document { modelContext?: { registerTool: (tool: unknown, options?: { signal?: AbortSignal }) => void | Promise<void> } } }
 
 const typeOptions = [
@@ -53,10 +54,20 @@ export default function Home() {
   const [details, setDetails] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showDemoNote, setShowDemoNote] = useState(true);
+  const [goalOpen, setGoalOpen] = useState(false);
+  const [goalTitle, setGoalTitle] = useState('Усвідомлений час для себе');
+  const [goalTarget, setGoalTarget] = useState(60);
+  const [goals, setGoals] = useState<Goal[]>([
+    { id: 'goal-1', title: 'Усвідомлений тиждень', metric: 'minutes', target: 60, period: 'week' },
+    { id: 'goal-2', title: 'Тренування контролю', metric: 'sessions', target: 2, period: 'week' },
+    { id: 'goal-3', title: 'Фантазія без екранів', metric: 'sessions', target: 4, period: 'month' },
+  ]);
 
   useEffect(() => {
     const stored = localStorage.getItem('metrika-entries');
     setEntries(stored ? JSON.parse(stored) : demoEntries());
+    const storedGoals = localStorage.getItem('metrika-goals');
+    if (storedGoals) setGoals(JSON.parse(storedGoals));
     setReady(true);
   }, []);
 
@@ -104,6 +115,7 @@ export default function Home() {
   }, [saveEntry]);
 
   const nav = (next: View) => { setView(next); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const addGoal = () => { const next = [...goals, { id: crypto.randomUUID(), title: goalTitle.trim() || 'Нова ціль', metric: 'minutes' as const, target: goalTarget, period: 'week' as const }]; setGoals(next); localStorage.setItem('metrika-goals', JSON.stringify(next)); setGoalOpen(false); };
   const currentDate = new Intl.DateTimeFormat('uk-UA', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
 
   return (
@@ -115,8 +127,8 @@ export default function Home() {
             <button className={`nav-item ${view === 'today' ? 'active' : ''}`} onClick={() => nav('today')}><LayoutDashboard /><span>Сьогодні</span></button>
             <button className={`nav-item ${view === 'history' ? 'active' : ''}`} onClick={() => nav('history')}><History /><span>Історія</span></button>
             <button className={`nav-item ${view === 'insights' ? 'active' : ''}`} onClick={() => nav('insights')}><BarChart3 /><span>Інсайти</span></button>
-            <button className="nav-item" onClick={() => nav('history')}><CalendarDays /><span>Календар</span></button>
-            <button className="nav-item" onClick={() => nav('insights')}><Target /><span>Цілі</span></button>
+            <button className={`nav-item ${view === 'calendar' ? 'active' : ''}`} onClick={() => nav('calendar')}><CalendarDays /><span>Календар</span></button>
+            <button className={`nav-item ${view === 'goals' ? 'active' : ''}`} onClick={() => nav('goals')}><Target /><span>Цілі</span></button>
           </nav>
           <div className="privacy-card"><LockKeyhole /><div><strong>Приватний простір</strong><span>Записи лишаються на пристрої</span></div></div>
           <button className="nav-item settings"><Settings /><span>Налаштування</span></button>
@@ -124,7 +136,7 @@ export default function Home() {
 
         <section className="workspace">
           <header className="topbar">
-            <div><p className="eyebrow">{currentDate}</p><h1>{view === 'today' ? 'Твій простір' : view === 'history' ? 'Історія' : 'Твої інсайти'} <span>✦</span></h1></div>
+            <div><p className="eyebrow">{currentDate}</p><h1>{view === 'today' ? 'Твій простір' : view === 'history' ? 'Історія' : view === 'calendar' ? 'Календар' : view === 'goals' ? 'Твої цілі' : 'Твої інсайти'} <span>✦</span></h1></div>
             <div className="top-actions"><button className="timer-pill" onClick={() => setTimerOpen(true)}><Timer /> Live-таймер</button><div className="streak-pill"><Flame /> 7 днів</div><button className="avatar" aria-label="Профіль" onClick={() => nav('insights')}><CircleUserRound /></button></div>
           </header>
 
@@ -132,6 +144,8 @@ export default function Home() {
 
           {view === 'today' && <TodayView entries={entries} stats={stats} ready={ready} openLog={() => setDialogOpen(true)} openTimer={() => setTimerOpen(true)} saved={saved} />}
           {view === 'history' && <HistoryView entries={entries} openLog={() => setDialogOpen(true)} />}
+          {view === 'calendar' && <CalendarView entries={entries} openLog={() => setDialogOpen(true)} />}
+          {view === 'goals' && <GoalsView entries={entries} goals={goals} openGoal={() => setGoalOpen(true)} />}
           {view === 'insights' && <InsightsView entries={entries} stats={stats} />}
         </section>
       </div>
@@ -156,6 +170,7 @@ export default function Home() {
       <Dialog open={timerOpen} onOpenChange={(open) => { setTimerOpen(open); if (!open) setTimerRunning(false); }}>
         <DialogContent className="timer-dialog" showCloseButton={false}><div className="timer-head"><span><span className="live-dot" /> Live session</span><button onClick={() => { setTimerOpen(false); setTimerRunning(false); }} aria-label="Закрити"><X /></button></div><div className="timer-face"><small>{timerRunning ? 'ФІКСУЄМО ЧАС…' : timerSeconds ? 'НА ПАУЗІ' : 'ГОТОВИЙ, КОЛИ ТИ ГОТОВИЙ'}</small><strong>{String(Math.floor(timerSeconds / 60)).padStart(2,'0')}:{String(timerSeconds % 60).padStart(2,'0')}</strong></div><div className="timer-actions"><button className="reset-timer" onClick={() => setTimerSeconds(0)} disabled={!timerSeconds}><RotateCcw /> Скинути</button><button className="play-timer" onClick={() => setTimerRunning(value => !value)}>{timerRunning ? <Pause /> : <Play />}</button><Button className="finish-timer" onClick={finishTimer} disabled={!timerSeconds}><Check /> Завершити й записати</Button></div><p><LockKeyhole /> Таймер працює лише на твоєму пристрої</p></DialogContent>
       </Dialog>
+      <Dialog open={goalOpen} onOpenChange={setGoalOpen}><DialogContent className="goal-dialog"><DialogHeader><span className="dialog-kicker">Нова особиста ціль</span><DialogTitle>Що хочеш дослідити?</DialogTitle><DialogDescription>Ціль має підтримувати цікавість до себе, а не створювати тиск.</DialogDescription></DialogHeader><div className="entry-form"><div className="field-block"><label htmlFor="goal-title">Назва</label><input id="goal-title" className="goal-input" value={goalTitle} onChange={event => setGoalTitle(event.target.value)} /></div><div className="field-block"><div className="mood-label"><label>Хвилин цього тижня</label><strong>{goalTarget}<small> хв</small></strong></div><div className="quick-values">{[30,60,90,120].map(value => <button key={value} className={goalTarget === value ? 'selected' : ''} onClick={() => setGoalTarget(value)}>{value}</button>)}</div></div><Button className="save-button" onClick={addGoal}><Target /> Створити ціль</Button></div></DialogContent></Dialog>
     </main>
   );
 }
@@ -177,6 +192,25 @@ function TodayView({ entries, stats, ready, openLog, openTimer, saved }: { entri
 
 function HistoryView({ entries, openLog }: { entries: Entry[]; openLog: () => void }) {
   return <section className="history-surface"><div className="history-toolbar"><div className="search-box"><Search /><input aria-label="Пошук в історії" placeholder="Пошук у нотатках і тегах" /></div><div className="history-filters">{['Усі','Edging','Швидкі','Чуттєві'].map((item,index) => <button className={index === 0 ? 'active' : ''} key={item}>{item}</button>)}</div><Button onClick={openLog}><Plus /> Нова сесія</Button></div><div className="history-list">{entries.map((entry, index) => <article className="history-entry" key={entry.id}><div className="date-tile"><strong>{new Date(entry.createdAt).getDate()}</strong><span>{new Intl.DateTimeFormat('uk-UA', { month: 'short' }).format(new Date(entry.createdAt))}</span></div><div className="history-icon"><Heart /></div><div className="history-copy"><strong>{entry.type} <em className="duration-chip">{entry.duration ?? 20} хв</em></strong><span><Clock3 /> {entry.time}{entry.tags.map(tag => <em key={tag}>#{tag.toLowerCase().replaceAll(' ','_')}</em>)}</span>{entry.note && <p>«{entry.note}»</p>}</div><div className="session-meta"><span><Zap /> {entry.orgasms ?? 1}</span><span><Star /> {entry.rating ?? 4}</span></div><button className="more-button" aria-label="Більше дій"><MoreHorizontal /></button>{index === 0 && <span className="latest-label">остання</span>}</article>)}</div></section>;
+}
+
+function CalendarView({ entries, openLog }: { entries: Entry[]; openLog: () => void }) {
+  const today = new Date();
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [selectedDay, setSelectedDay] = useState(today.getDate());
+  const month = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
+  const year = month.getFullYear(); const monthIndex = month.getMonth();
+  const daysCount = new Date(year, monthIndex + 1, 0).getDate();
+  const leading = (new Date(year, monthIndex, 1).getDay() + 6) % 7;
+  const dayEntries = (day: number) => entries.filter(item => { const date = new Date(item.createdAt); return date.getFullYear() === year && date.getMonth() === monthIndex && date.getDate() === day; });
+  const selectedEntries = dayEntries(selectedDay);
+  return <section className="calendar-layout"><article className="calendar-card"><div className="calendar-head"><button onClick={() => { setMonthOffset(value => value - 1); setSelectedDay(1); }} aria-label="Попередній місяць"><ChevronLeft /></button><div><span className="section-kicker">{year}</span><h2>{new Intl.DateTimeFormat('uk-UA', { month: 'long' }).format(month)}</h2></div><button onClick={() => { setMonthOffset(value => value + 1); setSelectedDay(1); }} aria-label="Наступний місяць"><ChevronRight /></button></div><div className="weekdays">{['Пн','Вт','Ср','Чт','Пт','Сб','Нд'].map(day => <span key={day}>{day}</span>)}</div><div className="month-grid">{Array.from({length:leading},(_,index) => <span className="empty-day" key={`empty-${index}`} />)}{Array.from({length:daysCount},(_,index) => { const day = index + 1; const sessions = dayEntries(day); const isToday = day === today.getDate() && monthIndex === today.getMonth() && year === today.getFullYear(); return <button key={day} className={`${selectedDay === day ? 'selected' : ''} ${isToday ? 'today' : ''} ${sessions.length ? 'has-session' : ''}`} onClick={() => setSelectedDay(day)}><span>{day}</span>{sessions.length > 0 && <div className="session-marks">{sessions.slice(0,3).map(item => <i key={item.id} className={`mark-${item.type.toLowerCase()}`} />)}</div>}</button>;})}</div><div className="calendar-legend"><span><i className="mark-edging" /> Edging</span><span><i className="mark-швидка" /> Швидка</span><span><i className="mark-чуттєва" /> Чуттєва</span><span><i className="mark-звичайна" /> Звичайна</span></div></article><aside className="day-panel"><div><span className="section-kicker">Обраний день</span><h3>{selectedDay} {new Intl.DateTimeFormat('uk-UA',{month:'long'}).format(month)}</h3></div>{selectedEntries.length ? <div className="day-sessions">{selectedEntries.map(item => <article key={item.id}><div className="history-icon"><Heart /></div><div><strong>{item.type}</strong><span>{item.time} · {item.duration ?? 20} хв</span></div><div className="mood-score">{item.rating ?? 4}<span>/5</span></div></article>)}</div> : <div className="empty-day-state"><CalendarDays /><strong>Сесій не було</strong><span>Порожній день — це теж частина твого природного ритму.</span></div>}<Button onClick={openLog}><Plus /> Додати сесію цього дня</Button></aside></section>;
+}
+
+function GoalsView({ entries, goals, openGoal }: { entries: Entry[]; goals: Goal[]; openGoal: () => void }) {
+  const weekEntries = entries.filter(item => Date.now() - new Date(item.createdAt).getTime() < 7 * 86400000);
+  const monthEntries = entries.filter(item => Date.now() - new Date(item.createdAt).getTime() < 30 * 86400000);
+  return <><section className="goals-lead"><div><span className="section-kicker">Без гонитви за цифрами</span><h2>Цілі, які підтримують<br/>твій ритм.</h2><p>Відстежуй цікаві для себе патерни. Жодна ціль не є обов’язковою.</p></div><Button onClick={openGoal}><Plus /> Створити ціль</Button></section><section className="goals-grid">{goals.map((goal,index) => { const source = goal.period === 'week' ? weekEntries : monthEntries; const value = goal.metric === 'minutes' ? source.reduce((sum,item) => sum + (item.duration ?? 20),0) : source.length; const progress = Math.min(100,Math.round(value / goal.target * 100)); return <article className={`goal-card-large ${progress >= 100 ? 'complete' : ''}`} key={goal.id}><div className="goal-card-top"><span className={`goal-symbol tone-${index % 3}`}><Target /></span><div><span>{goal.period === 'week' ? 'Тиждень' : 'Місяць'}</span><h3>{goal.title}</h3></div><button aria-label="Меню цілі"><MoreHorizontal /></button></div><div className="goal-big-number"><strong>{value}</strong><span>/ {goal.target} {goal.metric === 'minutes' ? 'хв' : 'сесій'}</span></div><div className="goal-line"><span style={{width:`${progress}%`}} /></div><div className="goal-card-bottom"><span>{progress >= 100 ? <><Check /> Досягнуто</> : `${progress}% виконано`}</span><span>{goal.period === 'week' ? '2 дні залишилось' : '26 днів залишилось'}</span></div></article>;})}<button className="new-goal-card" onClick={openGoal}><span><Plus /></span><strong>Нова особиста ціль</strong><small>Створи власний орієнтир</small></button></section></>;
 }
 
 function InsightsView({ entries, stats }: { entries: Entry[]; stats: { avg: string; avgDuration: number; totalOrgasms: number; weekCount: number; eveningShare: number } }) {
