@@ -128,3 +128,54 @@ button.stat-card{position:relative;display:block;width:100%;font-family:inherit;
 /* Consistent vertical rhythm between statistics rows */
 .stats-grid-main,.stats-grid-secondary,.deep-insights-grid,.formula-card,.mood-report-grid,.records-row{margin-top:18px}.stats-grid-main{margin-top:0}.stats-grid-secondary{margin-top:18px}.deep-insights-grid,.mood-report-grid{gap:18px}.formula-card{margin-bottom:0}.records-row{margin-top:18px}.insight-footnote{margin-top:18px}
 @media(max-width:760px){.stats-grid-main,.stats-grid-secondary,.deep-insights-grid,.formula-card,.mood-report-grid,.records-row{margin-top:14px}.stats-grid-main{margin-top:0}.deep-insights-grid,.mood-report-grid{gap:14px}.insight-footnote{margin-top:16px}}
+
+/* Mobile dialogs behave like real app screens and own their scroll. */
+@media(max-width:680px){
+  [data-slot=dialog-overlay]{display:none}
+  [data-slot=dialog-content].entry-dialog,
+  [data-slot=dialog-content].goal-dialog{
+    position:fixed!important;
+    inset:0!important;
+    top:0!important;
+    left:0!important;
+    width:100%!important;
+    max-width:none!important;
+    height:100dvh!important;
+    max-height:100dvh!important;
+    margin:0!important;
+    padding:calc(28px + env(safe-area-inset-top)) 20px calc(28px + env(safe-area-inset-bottom))!important;
+    display:block!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+    transform:none!important;
+    border:0!important;
+    border-radius:0!important;
+    box-shadow:none!important;
+  }
+  [data-slot=dialog-content] [data-slot=dialog-header]{padding-right:46px}
+  [data-slot=dialog-content]>[data-slot=dialog-close]{
+    position:fixed!important;
+    z-index:70;
+    top:calc(12px + env(safe-area-inset-top))!important;
+    right:14px!important;
+    width:44px!important;
+    height:44px!important;
+    border:1px solid #dddcd4;
+    border-radius:13px;
+    background:#fffefa!important;
+    box-shadow:0 5px 18px #19242114;
+  }
+  .entry-dialog .entry-form,.goal-dialog .goal-form{margin-top:22px;padding-bottom:8px}
+  .entry-dialog .save-button,
+  .goal-dialog .goal-dialog-actions{
+    position:sticky;
+    z-index:5;
+    bottom:calc(-28px - env(safe-area-inset-bottom));
+    margin:8px -20px calc(-28px - env(safe-area-inset-bottom));
+    padding:12px 20px calc(12px + env(safe-area-inset-bottom));
+    background:linear-gradient(180deg,#fffefa00,#fffefa 20%);
+  }
+  .entry-dialog .save-button{width:calc(100% + 40px);height:72px!important;padding-inline:20px!important;border:12px solid #fffefa;border-radius:25px!important}
+}
