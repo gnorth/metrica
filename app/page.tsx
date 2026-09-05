@@ -3975,13 +3975,13 @@ function InsightsView({
         : 0,
     };
   });
-  const categoryNames = ['Звичайна', 'Edging', 'Швидка', 'Чуттєва'];
+  const categoryNames = Array.from(new Set(periodEntries.map((item) => item.type)));
   const categoryColors = ['#91a83b', '#8f5bd7', '#f2ad31', '#ff6746'];
   const categoryData = categoryNames
     .map((name, index) => ({
       name,
-      value: scoped.filter((item) => item.type === name).length,
-      color: categoryColors[index],
+      value: periodEntries.filter((item) => item.type === name).length,
+      color: categoryColors[index % categoryColors.length],
     }))
     .filter((item) => item.value);
   const timeData = [
@@ -4535,11 +4535,12 @@ function InsightsView({
         </article>
       </section>
       <section className="stats-grid-secondary">
-        <article className="analytics-card">
+        <article className="analytics-card category-style-card">
           <div className="analytics-head">
             <div>
               <span className="section-kicker">Категорії</span>
               <h3>Твій стиль</h3>
+              {categoryFocus && <small>«{categoryFocus}» виділено серед усіх сесій</small>}
             </div>
           </div>
           <div className="donut-wrap">
@@ -4553,30 +4554,30 @@ function InsightsView({
                   data={categoryData}
                   dataKey="value"
                   nameKey="name"
-                  innerRadius={54}
-                  outerRadius={76}
-                  paddingAngle={4}
+                  innerRadius={48}
+                  outerRadius={68}
+                  paddingAngle={3}
                 >
                   {categoryData.map((item) => (
-                    <Cell key={item.name} fill={item.color} />
+                    <Cell key={item.name} fill={item.color} opacity={categoryFocus && item.name !== categoryFocus ? .28 : 1} stroke={item.name === categoryFocus ? '#192421' : 'transparent'} strokeWidth={item.name === categoryFocus ? 2 : 0} />
                   ))}
                 </Pie>
               </PieChart>
             </ChartContainer>
             <div className="donut-center">
-              <strong>{scoped.length}</strong>
+              <strong>{periodEntries.length}</strong>
               <span>сесій</span>
             </div>
             <div className="donut-legend">
               {categoryData.map((item) => (
-                <div key={item.name}>
+                <div key={item.name} className={item.name === categoryFocus ? 'active' : ''}>
                   <span>
                     <i style={{ background: item.color }} />
                     {item.name}
                   </span>
                   <strong>
                     {Math.round(
-                      (item.value / Math.max(scoped.length, 1)) * 100,
+                      (item.value / Math.max(periodEntries.length, 1)) * 100,
                     )}
                     %
                   </strong>
