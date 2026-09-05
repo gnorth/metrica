@@ -58,6 +58,7 @@ const downloadBlob=(content:string,name:string,type:string)=>{const url=URL.crea
 
 export default function Home() {
   const [view, setView] = useState<View>('today');
+  const [previousView, setPreviousView] = useState<View>('today');
   const [statFocus,setStatFocus]=useState<StatFocus|null>(null);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [ready, setReady] = useState(false);
@@ -158,7 +159,7 @@ export default function Home() {
   };
   const archiveTaxonomyValue = (group: TaxonomyGroup, value: string) => { updateArchivedTaxonomy(group,[...new Set([...archivedTaxonomy[group],value])]); if(taxonomy[group].includes(value))updateTaxonomy(group,taxonomy[group].filter(item=>item!==value)); };
   const restoreTaxonomyValue = (group: TaxonomyGroup, value: string) => { updateArchivedTaxonomy(group,archivedTaxonomy[group].filter(item=>item!==value)); if(!baseTaxonomy[group].includes(value)&&!taxonomy[group].includes(value))updateTaxonomy(group,[...taxonomy[group],value]); };
-  const openSession = (entry: Entry) => { setSelectedEntryId(entry.id); setView('session'); window.scrollTo({top:0,behavior:'smooth'}); };
+  const openSession = (entry: Entry) => { setSelectedEntryId(entry.id); setPreviousView(view); setView('session'); window.scrollTo({top:0,behavior:'smooth'}); };
   const duplicateEntry = (entry: Entry) => { const now = new Date(); const copy: Entry = { ...entry, id: crypto.randomUUID(), createdAt: now.toISOString(), time: new Intl.DateTimeFormat('uk-UA', { hour: '2-digit', minute: '2-digit' }).format(now) }; setEntries(current => { const next=[copy,...current.filter(item=>!item.id.startsWith('demo-'))]; localStorage.setItem('metrika-entries',JSON.stringify(next)); return next; }); setCanUndoSave(true); setSaved(true); window.setTimeout(()=>setSaved(false),4000); };
   const deleteEntry = (entry: Entry) => { setEntries(current => { const index=current.findIndex(item=>item.id===entry.id); const next=current.filter(item=>item.id!==entry.id); localStorage.setItem('metrika-entries',JSON.stringify(next)); setDeleted({entry,index}); return next; }); };
   const undoDelete = () => { if (!deleted) return; setEntries(current => { const next=[...current]; next.splice(Math.max(0,deleted.index),0,deleted.entry); localStorage.setItem('metrika-entries',JSON.stringify(next)); return next; }); setDeleted(null); };
@@ -180,8 +181,9 @@ export default function Home() {
     return () => lifecycle.abort();
   }, [saveEntry]);
 
-  const nav = (next: View) => { setView(next); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-  const openStat=(metric:StatFocus)=>{setStatFocus(metric);setView('insights');window.scrollTo({top:0,behavior:'smooth'})};
+  const nav = (next: View) => { if(next!==view)setPreviousView(view); setView(next); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const goBack = () => nav(previousView===view?'today':previousView);
+  const openStat=(metric:StatFocus)=>{setStatFocus(metric);setPreviousView(view);setView('insights');window.scrollTo({top:0,behavior:'smooth'})};
   const persistGoals=(next:Goal[])=>{setGoals(next);localStorage.setItem('metrika-goals',JSON.stringify(next))};
   const openGoalForm=(goal?:Goal)=>{const intent:GoalIntent=goal?.tag==='Без екранів'?'screenFree':goal?.metric==='minutes'?'time':goal?.rule==='atMost'?'limit':'regularity';setGoalEditingId(goal?.id??null);setGoalTitle(goal?.title??'');setGoalMetric(goal?.metric??'sessions');setGoalTarget(goal?.target??2);setGoalPeriod(goal?.period??'week');setGoalRule(goal?.rule??'atLeast');setGoalIntent(intent);setGoalCategory(goal?.category??'');setGoalTag(goal?.tag??'');setGoalOpen(true)};
   const saveGoal=()=>{const record:Goal={id:goalEditingId??crypto.randomUUID(),title:goalTitle.trim()||'Моя ціль',metric:goalMetric,target:goalTarget,period:goalPeriod,rule:goalRule,status:goalEditingId?(goals.find(item=>item.id===goalEditingId)?.status??'active'):'active',category:goalCategory||undefined,tag:goalTag||undefined,createdAt:goalEditingId?(goals.find(item=>item.id===goalEditingId)?.createdAt??new Date().toISOString()):new Date().toISOString()};persistGoals(goalEditingId?goals.map(item=>item.id===goalEditingId?record:item):[record,...goals]);setGoalOpen(false)};
@@ -197,7 +199,7 @@ export default function Home() {
   const periodLabels:Record<GoalPeriod,string>={day:'день',week:'тиждень',fortnight:'2 тижні',month:'місяць'};
   const goalSentence=goalIntent==='time'?`Я хочу приділяти собі ${goalTarget} хв протягом ${periodLabels[goalPeriod]}.`:goalIntent==='limit'?`Я хочу проводити не більше ${goalTarget} сес. протягом ${periodLabels[goalPeriod]}.`:goalIntent==='screenFree'?`Я хочу мати щонайменше ${goalTarget} сес. без екранів протягом ${periodLabels[goalPeriod]}.`:`Я хочу мати щонайменше ${goalTarget} сес. протягом ${periodLabels[goalPeriod]}.`;
 
-  if(view==='timer')return <TimerScreen seconds={timerSeconds} running={timerRunning} onToggle={()=>setTimerRunning(value=>!value)} onReset={()=>setTimerSeconds(0)} onFinish={finishTimer} onBack={()=>{setTimerRunning(false);nav('today')}}/>;
+  if(view==='timer')return <TimerScreen seconds={timerSeconds} running={timerRunning} onToggle={()=>setTimerRunning(value=>!value)} onReset={()=>setTimerSeconds(0)} onFinish={finishTimer} onBack={()=>{setTimerRunning(false);goBack()}}/>;
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -210,13 +212,14 @@ export default function Home() {
             <button aria-label="Статистика" title="Статистика" className={`nav-item ${view === 'insights' ? 'active' : ''}`} onClick={() => nav('insights')}><BarChart3 /><span>Статистика</span></button>
             <button aria-label="Календар" title="Календар" className={`nav-item ${view === 'calendar' ? 'active' : ''}`} onClick={() => nav('calendar')}><CalendarDays /><span>Календар</span></button>
             <button aria-label="Цілі" title="Цілі" className={`nav-item ${view === 'goals' ? 'active' : ''}`} onClick={() => nav('goals')}><Target /><span>Цілі</span></button>
+            <button aria-label="Дані" title="Захист даних" className={`nav-item data-nav ${view === 'data' ? 'active' : ''}`} onClick={() => nav('data')}><LockKeyhole /><span>Дані</span></button>
           </nav>
           <button className="privacy-card" onClick={()=>nav('data')}><LockKeyhole /><div><strong>Приватний простір</strong><span>Бекап і перенесення</span></div></button>
         </aside>
 
         <section className="workspace">
-          <header className="topbar">
-            <div><p className="eyebrow">{currentDate}</p><h1>{view === 'today' ? 'Твій простір' : view === 'history' ? 'Історія' : view === 'calendar' ? 'Календар' : view === 'goals' ? 'Твої цілі' : view === 'session' ? 'Сесія' : view === 'taxonomy' ? 'Твій словник' : view === 'data' ? 'Захист даних' : 'Статистика'} <span>✦</span></h1></div>
+          <header className={`topbar ${(['session','taxonomy','data'] as View[]).includes(view)?'secondary':''}`}>
+            <div className="topbar-title">{(['session','taxonomy','data'] as View[]).includes(view)&&<button className="mobile-back" onClick={goBack} aria-label="Повернутися назад"><ArrowLeft/></button>}<div><p className="eyebrow">{currentDate}</p><h1>{view === 'today' ? 'Твій простір' : view === 'history' ? 'Історія' : view === 'calendar' ? 'Календар' : view === 'goals' ? 'Твої цілі' : view === 'session' ? 'Сесія' : view === 'taxonomy' ? 'Твій словник' : view === 'data' ? 'Захист даних' : 'Статистика'} <span>✦</span></h1></div></div>
             <div className="top-actions"><button className="timer-pill" onClick={() => nav('timer')}><Timer /> Live-таймер</button><div className="streak-pill" title="Поточна серія активних днів"><Flame /> {stats.streak} {stats.streak===1?'день':'днів'}</div><button className={`avatar ${view==='taxonomy'?'active':''}`} aria-label="Керувати словником" title="Словник" onClick={() => nav('taxonomy')}><CircleUserRound /></button></div>
           </header>
 
@@ -229,7 +232,7 @@ export default function Home() {
           {view === 'insights' && <InsightsView entries={entries} stats={stats} focus={statFocus} onFocus={setStatFocus} />}
           {view === 'taxonomy' && <TaxonomyView entries={entries} taxonomy={taxonomy} archived={archivedTaxonomy} onAdd={(group,value)=>updateTaxonomy(group,[...taxonomy[group],value])} onRename={replaceTaxonomyValue} onMerge={replaceTaxonomyValue} onArchive={archiveTaxonomyValue} onRestore={restoreTaxonomyValue} />}
           {view === 'data' && <DataView entries={entries} goals={goals} taxonomy={taxonomy} archived={archivedTaxonomy} onRestore={restoreData} />}
-          {view === 'session' && selectedEntryId && entries.find(item=>item.id===selectedEntryId) && <SessionView entry={entries.find(item=>item.id===selectedEntryId)!} onBack={()=>nav('history')} onEdit={editEntry} onDuplicate={duplicateEntry} onDelete={(entry)=>{deleteEntry(entry);setSelectedEntryId(null);nav('history')}} />}
+          {view === 'session' && selectedEntryId && entries.find(item=>item.id===selectedEntryId) && <SessionView entry={entries.find(item=>item.id===selectedEntryId)!} onBack={goBack} onEdit={editEntry} onDuplicate={duplicateEntry} onDelete={(entry)=>{deleteEntry(entry);setSelectedEntryId(null);goBack()}} />}
         </section>
       </div>
 
