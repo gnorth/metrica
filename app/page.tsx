@@ -9,7 +9,6 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  CircleUserRound,
   Clock3,
   Flame,
   Heart,
@@ -1195,13 +1194,13 @@ export default function Home() {
               <span>Цілі</span>
             </button>
             <button
-              aria-label="Дані"
-              title="Захист даних"
-              className={`nav-item data-nav ${view === 'data' ? 'active' : ''}`}
-              onClick={() => nav('data')}
+              aria-label="Параметри сесії"
+              title="Параметри сесії"
+              className={`nav-item ${view === 'taxonomy' ? 'active' : ''}`}
+              onClick={() => nav('taxonomy')}
             >
-              <LockKeyhole />
-              <span>Дані</span>
+              <FolderCog />
+              <span>Параметри</span>
             </button>
           </nav>
           <button className="privacy-card" onClick={() => nav('data')}>
@@ -1257,12 +1256,12 @@ export default function Home() {
                 <Flame /> {stats.streak} {stats.streak === 1 ? 'день' : 'днів'}
               </div>
               <button
-                className={`avatar ${view === 'taxonomy' ? 'active' : ''}`}
-                aria-label="Налаштувати параметри сесії"
-                title="Параметри сесії"
-                onClick={() => nav('taxonomy')}
+                className={`avatar ${view === 'data' ? 'active' : ''}`}
+                aria-label="Відкрити захист даних"
+                title="Захист даних"
+                onClick={() => nav('data')}
               >
-                <CircleUserRound />
+                <LockKeyhole />
               </button>
             </div>
           </header>
