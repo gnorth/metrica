@@ -2072,12 +2072,10 @@ function TodayView({
 }) {
   const orderedEntries = [...entries].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   const recent = orderedEntries.slice(0, 3);
-  const [coachHidden, setCoachHidden] = useState(false);
   const [coachIndex, setCoachIndex] = useState(0);
   const [coachTouchStart, setCoachTouchStart] = useState<number | null>(null);
   const [categoryRange, setCategoryRange] = useState<7 | 30>(30);
-  const todayKey = new Date().toISOString().slice(0, 10);
-  useEffect(() => setCoachHidden(localStorage.getItem('metrika-coach-hidden') === todayKey), [todayKey]);
+  useEffect(() => localStorage.removeItem('metrika-coach-hidden'), []);
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
   const todayCount = entries.filter(entry => new Date(entry.createdAt).getTime() >= todayStart.getTime()).length;
   const latestStamp = entries.length ? Math.max(...entries.map(entry => new Date(entry.createdAt).getTime())) : Date.now();
@@ -2208,7 +2206,7 @@ function TodayView({
           </div>
         </article>
       </section>
-      {ready && !coachHidden && <section className={`adaptive-coach ${coach.tone}`} aria-live="polite" onTouchStart={(event) => setCoachTouchStart(event.touches[0].clientX)} onTouchEnd={(event) => { if (coachTouchStart === null) return; const distance = event.changedTouches[0].clientX - coachTouchStart; if (Math.abs(distance) > 45) setCoachIndex((value) => (value + (distance < 0 ? 1 : coaches.length - 1)) % coaches.length); setCoachTouchStart(null); }}><span className="coach-icon"><CoachIcon/></span><div className="coach-copy"><div className="coach-meta"><span>{coach.eyebrow}</span><div className="coach-pagination"><button onClick={() => setCoachIndex((value) => (value + coaches.length - 1) % coaches.length)} aria-label="Попередня порада"><ChevronLeft/></button><span>Порада {coachIndex + 1}/{coaches.length}</span><button onClick={() => setCoachIndex((value) => (value + 1) % coaches.length)} aria-label="Наступна порада"><ChevronRight/></button></div></div><h3>{coach.title}</h3><p>{coach.text}</p><div className="coach-actions"><button className="coach-action" onClick={coach.onAction}>{coach.action}<ChevronRight/></button><button className="coach-secondary" onClick={coach.onSecondary}>{coach.secondary}</button></div></div><button className="coach-dismiss" onClick={() => { setCoachHidden(true); localStorage.setItem('metrika-coach-hidden', todayKey); }} aria-label="Приховати повідомлення до завтра" title="Приховати до завтра"><X/></button></section>}
+      {ready && <section className={`adaptive-coach ${coach.tone}`} aria-live="polite" onTouchStart={(event) => setCoachTouchStart(event.touches[0].clientX)} onTouchEnd={(event) => { if (coachTouchStart === null) return; const distance = event.changedTouches[0].clientX - coachTouchStart; if (Math.abs(distance) > 45) setCoachIndex((value) => (value + (distance < 0 ? 1 : coaches.length - 1)) % coaches.length); setCoachTouchStart(null); }}><span className="coach-icon"><CoachIcon/></span><div className="coach-copy"><div className="coach-meta"><span>{coach.eyebrow}</span><div className="coach-pagination"><button onClick={() => setCoachIndex((value) => (value + coaches.length - 1) % coaches.length)} aria-label="Попередня порада"><ChevronLeft/></button><span>Порада {coachIndex + 1}/{coaches.length}</span><button onClick={() => setCoachIndex((value) => (value + 1) % coaches.length)} aria-label="Наступна порада"><ChevronRight/></button></div></div><h3>{coach.title}</h3><p>{coach.text}</p><div className="coach-actions"><button className="coach-action" onClick={coach.onAction}>{coach.action}<ChevronRight/></button><button className="coach-secondary" onClick={coach.onSecondary}>{coach.secondary}</button></div></div></section>}
       <section className="stat-grid four" aria-label="Коротка статистика">
         <button className="stat-card" onClick={() => openStat('sessions')}>
           <span>Соло-сесій</span>
