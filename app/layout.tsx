@@ -14,17 +14,17 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://metrika-private-tracker.gnorth-13.chatgpt.site'),
-  title: 'Metrika — приватний трекер звичок',
-  description: 'Розумій свої ритми, відстежуй звички та будуй кращі ритуали.',
+  title: 'Metrika Solo — приватний трекер сесій',
+  description: 'Приватний solo-first трекер: сесії, таймер, категорії, цілі та персональні інсайти.',
   openGraph: {
-    title: 'Metrika — приватний трекер твоїх ритмів',
-    description: 'Розумій свої ритми, відстежуй звички та будуй кращі ритуали.',
+    title: 'Metrika Solo — приватний трекер твоїх ритмів',
+    description: 'Сесії, таймер, категорії, цілі та персональні інсайти — приватно.',
     images: ['/og.png'],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Metrika — приватний трекер твоїх ритмів',
-    description: 'Розумій свої ритми, відстежуй звички та будуй кращі ритуали.',
+    title: 'Metrika Solo — приватний трекер твоїх ритмів',
+    description: 'Сесії, таймер, категорії, цілі та персональні інсайти — приватно.',
     images: ['/og.png'],
   },
 };
