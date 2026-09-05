@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity, ArrowLeft, BarChart3, CalendarDays, Check, ChevronLeft, ChevronRight, CircleUserRound,
   Clock3, Flame, Heart, History, LayoutDashboard, LockKeyhole, MoreHorizontal, Pause, Play, Plus,
-  Copy, Edit3, LocateFixed, MapPin, PersonStanding, RotateCcw, Search, ShieldCheck, Sparkles, Star, Tag, Target, Timer, Trash2, X, Zap,
+  Archive, Copy, Edit3, FolderCog, LocateFixed, MapPin, Merge, PersonStanding, RotateCcw, Search, ShieldCheck, Sparkles, Star, Tag, Target, Timer, Trash2, X, Zap,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,10 +14,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Area, AreaChart, Bar, CartesianGrid, Cell, Pie, PieChart, PolarAngleAxis, PolarGrid, Radar, RadarChart, XAxis, YAxis } from 'recharts';
 
-type View = 'today' | 'history' | 'calendar' | 'goals' | 'insights' | 'session';
+type View = 'today' | 'history' | 'calendar' | 'goals' | 'insights' | 'session' | 'taxonomy';
 type Entry = { id: string; type: string; mood: number; duration: number; rating: number; orgasms: number; time: string; note: string; tags: string[]; places?: string[]; positions?: string[]; locations?: string[]; createdAt: string };
 type Goal = { id: string; title: string; metric: 'sessions' | 'minutes'; target: number; period: 'week' | 'month' };
 type Taxonomy = { categories: string[]; tags: string[]; places: string[]; positions: string[]; locations: string[] };
+type TaxonomyGroup = keyof Taxonomy;
 declare global { interface Document { modelContext?: { registerTool: (tool: unknown, options?: { signal?: AbortSignal }) => void | Promise<void> } } }
 
 const typeOptions = [
@@ -26,11 +27,12 @@ const typeOptions = [
   { id: 'Швидка', icon: Timer, hint: 'Коротка сесія' },
   { id: 'Чуттєва', icon: Heart, hint: 'Повільно й уважно' },
 ];
-const tagOptions = ['Без екранів', 'Іграшка', 'Перед сном', 'Зняти стрес', 'Фантазія', 'У душі'];
-const placeOptions = ['Ліжко', 'Душ', 'Диван', 'Крісло'];
-const positionOptions = ['Лежачи', 'Сидячи', 'Стоячи', 'На боці'];
-const locationOptions = ['Вдома', 'Готель', 'У подорожі', 'На природі'];
+const defaultTagOptions = ['Без екранів', 'Іграшка', 'Перед сном', 'Зняти стрес', 'Фантазія', 'У душі'];
+const defaultPlaceOptions = ['Ліжко', 'Душ', 'Диван', 'Крісло'];
+const defaultPositionOptions = ['Лежачи', 'Сидячи', 'Стоячи', 'На боці'];
+const defaultLocationOptions = ['Вдома', 'Готель', 'У подорожі', 'На природі'];
 const emptyTaxonomy: Taxonomy = { categories: [], tags: [], places: [], positions: [], locations: [] };
+const baseTaxonomy: Taxonomy = { categories: typeOptions.map(item=>item.id), tags: defaultTagOptions, places: defaultPlaceOptions, positions: defaultPositionOptions, locations: defaultLocationOptions };
 
 function demoEntries(): Entry[] {
   const now = Date.now();
@@ -62,6 +64,7 @@ export default function Home() {
   const [positions, setPositions] = useState<string[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
   const [taxonomy, setTaxonomy] = useState<Taxonomy>(emptyTaxonomy);
+  const [archivedTaxonomy, setArchivedTaxonomy] = useState<Taxonomy>(emptyTaxonomy);
   const [note, setNote] = useState('');
   const [details, setDetails] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -87,6 +90,8 @@ export default function Home() {
     if (storedGoals) setGoals(JSON.parse(storedGoals));
     const storedTaxonomy = localStorage.getItem('metrika-taxonomy');
     if (storedTaxonomy) setTaxonomy({...emptyTaxonomy,...JSON.parse(storedTaxonomy)});
+    const storedArchived = localStorage.getItem('metrika-taxonomy-archived');
+    if (storedArchived) setArchivedTaxonomy({...emptyTaxonomy,...JSON.parse(storedArchived)});
     setReady(true);
   }, []);
 
@@ -127,6 +132,15 @@ export default function Home() {
   const openNewEntry = () => { setEditingId(null); setMood(8); setType('Звичайна'); setDuration(20); setRating(4); setOrgasms(1); setTags([]); setPlaces([]); setPositions([]); setLocations([]); setNote(''); setDetails(false); setDialogOpen(true); };
   const editEntry = (entry: Entry) => { setEditingId(entry.id); setMood(entry.mood); setType(entry.type); setDuration(entry.duration ?? 20); setRating(entry.rating ?? 4); setOrgasms(entry.orgasms ?? 1); setTags(entry.tags); setPlaces(entry.places??[]); setPositions(entry.positions??[]); setLocations(entry.locations??[]); setNote(entry.note); setDetails(Boolean(entry.note || entry.tags.length || entry.places?.length || entry.positions?.length || entry.locations?.length)); setDialogOpen(true); };
   const updateTaxonomy = (group: keyof Taxonomy, values: string[]) => { const next={...taxonomy,[group]:values}; setTaxonomy(next); localStorage.setItem('metrika-taxonomy',JSON.stringify(next)); };
+  const updateArchivedTaxonomy = (group: TaxonomyGroup, values: string[]) => { const next={...archivedTaxonomy,[group]:values}; setArchivedTaxonomy(next); localStorage.setItem('metrika-taxonomy-archived',JSON.stringify(next)); };
+  const replaceTaxonomyValue = (group: TaxonomyGroup, oldValue: string, newValue: string) => {
+    const clean = newValue.trim(); if (!clean || clean === oldValue) return;
+    setEntries(current => { const next=current.map(entry=>group==='categories' ? {...entry,type:entry.type===oldValue?clean:entry.type} : {...entry,[group]:[...new Set((entry[group]??[]).map(value=>value===oldValue?clean:value))]}); localStorage.setItem('metrika-entries',JSON.stringify(next)); return next; });
+    const customs=[...new Set(taxonomy[group].map(value=>value===oldValue?clean:value))]; if(!baseTaxonomy[group].includes(clean)&&!customs.includes(clean))customs.push(clean); updateTaxonomy(group,customs);
+    if(baseTaxonomy[group].includes(oldValue)) updateArchivedTaxonomy(group,[...new Set([...archivedTaxonomy[group],oldValue])]);
+  };
+  const archiveTaxonomyValue = (group: TaxonomyGroup, value: string) => { updateArchivedTaxonomy(group,[...new Set([...archivedTaxonomy[group],value])]); if(taxonomy[group].includes(value))updateTaxonomy(group,taxonomy[group].filter(item=>item!==value)); };
+  const restoreTaxonomyValue = (group: TaxonomyGroup, value: string) => { updateArchivedTaxonomy(group,archivedTaxonomy[group].filter(item=>item!==value)); if(!baseTaxonomy[group].includes(value)&&!taxonomy[group].includes(value))updateTaxonomy(group,[...taxonomy[group],value]); };
   const openSession = (entry: Entry) => { setSelectedEntryId(entry.id); setView('session'); window.scrollTo({top:0,behavior:'smooth'}); };
   const duplicateEntry = (entry: Entry) => { const now = new Date(); const copy: Entry = { ...entry, id: crypto.randomUUID(), createdAt: now.toISOString(), time: new Intl.DateTimeFormat('uk-UA', { hour: '2-digit', minute: '2-digit' }).format(now) }; setEntries(current => { const next=[copy,...current.filter(item=>!item.id.startsWith('demo-'))]; localStorage.setItem('metrika-entries',JSON.stringify(next)); return next; }); setCanUndoSave(true); setSaved(true); window.setTimeout(()=>setSaved(false),4000); };
   const deleteEntry = (entry: Entry) => { setEntries(current => { const index=current.findIndex(item=>item.id===entry.id); const next=current.filter(item=>item.id!==entry.id); localStorage.setItem('metrika-entries',JSON.stringify(next)); setDeleted({entry,index}); return next; }); };
@@ -151,6 +165,10 @@ export default function Home() {
   const nav = (next: View) => { setView(next); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const addGoal = () => { const next = [...goals, { id: crypto.randomUUID(), title: goalTitle.trim() || 'Нова ціль', metric: 'minutes' as const, target: goalTarget, period: 'week' as const }]; setGoals(next); localStorage.setItem('metrika-goals', JSON.stringify(next)); setGoalOpen(false); };
   const currentDate = new Intl.DateTimeFormat('uk-UA', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
+  const tagOptions=defaultTagOptions.filter(item=>!archivedTaxonomy.tags.includes(item));
+  const placeOptions=defaultPlaceOptions.filter(item=>!archivedTaxonomy.places.includes(item));
+  const positionOptions=defaultPositionOptions.filter(item=>!archivedTaxonomy.positions.includes(item));
+  const locationOptions=defaultLocationOptions.filter(item=>!archivedTaxonomy.locations.includes(item));
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -169,8 +187,8 @@ export default function Home() {
 
         <section className="workspace">
           <header className="topbar">
-            <div><p className="eyebrow">{currentDate}</p><h1>{view === 'today' ? 'Твій простір' : view === 'history' ? 'Історія' : view === 'calendar' ? 'Календар' : view === 'goals' ? 'Твої цілі' : view === 'session' ? 'Сесія' : 'Статистика'} <span>✦</span></h1></div>
-            <div className="top-actions"><button className="timer-pill" onClick={() => setTimerOpen(true)}><Timer /> Live-таймер</button><div className="streak-pill" title="Поточна серія активних днів"><Flame /> {stats.streak} {stats.streak===1?'день':'днів'}</div><button className="avatar" aria-label="Відкрити статистику профілю" onClick={() => nav('insights')}><CircleUserRound /></button></div>
+            <div><p className="eyebrow">{currentDate}</p><h1>{view === 'today' ? 'Твій простір' : view === 'history' ? 'Історія' : view === 'calendar' ? 'Календар' : view === 'goals' ? 'Твої цілі' : view === 'session' ? 'Сесія' : view === 'taxonomy' ? 'Твій словник' : 'Статистика'} <span>✦</span></h1></div>
+            <div className="top-actions"><button className="timer-pill" onClick={() => setTimerOpen(true)}><Timer /> Live-таймер</button><div className="streak-pill" title="Поточна серія активних днів"><Flame /> {stats.streak} {stats.streak===1?'день':'днів'}</div><button className={`avatar ${view==='taxonomy'?'active':''}`} aria-label="Керувати словником" title="Словник" onClick={() => nav('taxonomy')}><CircleUserRound /></button></div>
           </header>
 
           {showDemoNote && entries.some(item => item.id.startsWith('demo-')) && <div className="demo-note"><Sparkles /><span><strong>Тут є демо-дані,</strong> щоб ти одразу побачив користь. Перший запис замінить їх твоїми.</span><button onClick={() => {setShowDemoNote(false);localStorage.setItem('metrika-demo-note','hidden')}} aria-label="Більше не показувати"><X /></button></div>}
@@ -180,6 +198,7 @@ export default function Home() {
           {view === 'calendar' && <CalendarView entries={entries} openLog={openNewEntry} onOpen={openSession} />}
           {view === 'goals' && <GoalsView entries={entries} goals={goals} openGoal={() => setGoalOpen(true)} />}
           {view === 'insights' && <InsightsView entries={entries} stats={stats} />}
+          {view === 'taxonomy' && <TaxonomyView entries={entries} taxonomy={taxonomy} archived={archivedTaxonomy} onAdd={(group,value)=>updateTaxonomy(group,[...taxonomy[group],value])} onRename={replaceTaxonomyValue} onMerge={replaceTaxonomyValue} onArchive={archiveTaxonomyValue} onRestore={restoreTaxonomyValue} />}
           {view === 'session' && selectedEntryId && entries.find(item=>item.id===selectedEntryId) && <SessionView entry={entries.find(item=>item.id===selectedEntryId)!} onBack={()=>nav('history')} onEdit={editEntry} onDuplicate={duplicateEntry} onDelete={(entry)=>{deleteEntry(entry);setSelectedEntryId(null);nav('history')}} />}
         </section>
       </div>
@@ -191,7 +210,7 @@ export default function Home() {
         <DialogContent className="entry-dialog">
           <DialogHeader><span className="dialog-kicker">{editingId ? 'Редагування запису' : 'Нова соло-сесія · приватно'}</span><DialogTitle>{editingId ? 'Оновити деталі' : 'Як усе пройшло?'}</DialogTitle><DialogDescription>{editingId ? 'Зміни одразу оновлять статистику, календар і цілі.' : 'Короткий запис для чесної статистики. Деталі можна пропустити.'}</DialogDescription></DialogHeader>
           <div className="entry-form">
-            <div className="field-block"><label>Основна категорія</label><div className="type-cards">{typeOptions.map(item => <button key={item.id} onClick={() => setType(item.id)} className={type === item.id ? 'selected' : ''}><item.icon /><strong>{item.id}</strong><small>{item.hint}</small>{type === item.id && <Check className="selected-check" />}</button>)}</div><AttributePicker compact label="Власні категорії" hint="одна категорія" icon={Sparkles} options={taxonomy.categories} custom={taxonomy.categories} selected={taxonomy.categories.includes(type)?[type]:[]} onToggle={value=>setType(value)} onAdd={value=>updateTaxonomy('categories',[...taxonomy.categories,value])} onRename={(oldValue,newValue)=>{updateTaxonomy('categories',taxonomy.categories.map(item=>item===oldValue?newValue:item));if(type===oldValue)setType(newValue)}} onRemove={value=>{updateTaxonomy('categories',taxonomy.categories.filter(item=>item!==value));if(type===value)setType('Звичайна')}} /></div>
+            <div className="field-block"><label>Основна категорія</label><div className="type-cards">{typeOptions.filter(item=>!archivedTaxonomy.categories.includes(item.id)).map(item => <button key={item.id} onClick={() => setType(item.id)} className={type === item.id ? 'selected' : ''}><item.icon /><strong>{item.id}</strong><small>{item.hint}</small>{type === item.id && <Check className="selected-check" />}</button>)}</div><AttributePicker compact label="Власні категорії" hint="одна категорія" icon={Sparkles} options={taxonomy.categories.filter(item=>!archivedTaxonomy.categories.includes(item))} custom={taxonomy.categories} selected={taxonomy.categories.includes(type)?[type]:[]} onToggle={value=>setType(value)} onAdd={value=>updateTaxonomy('categories',[...taxonomy.categories,value])} onRename={(oldValue,newValue)=>{replaceTaxonomyValue('categories',oldValue,newValue);if(type===oldValue)setType(newValue)}} onRemove={value=>{archiveTaxonomyValue('categories',value);if(type===value)setType('Звичайна')}} /></div>
             <div className="core-fields"><div className="field-block compact-field"><div className="mood-label"><label>Тривалість</label><strong>{duration}<small> хв</small></strong></div><div className="quick-values">{[5,15,25,45].map(value => <button key={value} className={duration === value ? 'selected' : ''} onClick={() => setDuration(value)}>{value}</button>)}</div><Slider value={[duration]} min={1} max={90} step={1} onValueChange={(value) => setDuration(Array.isArray(value) ? value[0] : value)} /></div><div className="field-block compact-field"><div className="mood-label"><label>Оргазми</label><strong>{orgasms}</strong></div><div className="stepper"><button onClick={() => setOrgasms(value => Math.max(0, value - 1))}>−</button><span>{orgasms}</span><button onClick={() => setOrgasms(value => Math.min(20, value + 1))}>+</button></div></div></div>
             <div className="field-block rating-block"><div className="mood-label"><label>Задоволення</label><strong>{rating}<small>/5</small></strong></div><div className="rating-stars">{[1,2,3,4,5].map(value => <button key={value} onClick={() => setRating(value)} aria-label={`${value} з 5`} className={value <= rating ? 'selected' : ''}><Star /></button>)}</div></div>
             <div className="field-block mood-block"><div className="mood-label"><div><label>Як ти почуваєшся після?</label><span>{mood <= 4 ? 'Не дуже' : mood <= 7 ? 'Нормально' : 'Чудово'}</span></div><strong>{mood}<small>/10</small></strong></div><Slider value={[mood]} min={1} max={10} step={1} onValueChange={(value) => setMood(Array.isArray(value) ? value[0] : value)} /><div className="scale-labels"><span>важко</span><span>супер</span></div></div>
@@ -239,6 +258,16 @@ function HistoryView({ entries, openLog, onOpen, onEdit, onDuplicate, onDelete }
   const normalizedQuery=query.trim().toLocaleLowerCase('uk-UA');
   const filtered=entries.filter(entry => (filter==='Усі'||entry.type===filter) && (!normalizedQuery||`${entry.type} ${entry.note} ${entry.tags.join(' ')}`.toLocaleLowerCase('uk-UA').includes(normalizedQuery)));
   return <section className="history-surface"><div className="history-toolbar"><div className="search-box"><Search /><input value={query} onChange={event=>setQuery(event.target.value)} aria-label="Пошук в історії" placeholder="Пошук у нотатках і тегах" /></div><div className="history-filters">{filters.map(item => <button type="button" onClick={()=>{setFilter(item.value);setMenu(null)}} aria-pressed={filter===item.value} className={filter===item.value?'active':''} key={item.value}>{item.label}<span>{item.value==='Усі'?entries.length:entries.filter(entry=>entry.type===item.value).length}</span></button>)}</div><Button onClick={openLog}><Plus /> Нова сесія</Button></div><div className="history-result"><span>{filter==='Усі'?'Усі записи':filters.find(item=>item.value===filter)?.label}</span><strong>{filtered.length} {filtered.length===1?'запис':'записів'}</strong></div><div className="history-list">{filtered.map((entry, index) => <article className="history-entry" key={entry.id}><div className="date-tile"><strong>{new Date(entry.createdAt).getDate()}</strong><span>{new Intl.DateTimeFormat('uk-UA', { month: 'short' }).format(new Date(entry.createdAt))}</span></div><div className="history-icon"><Heart /></div><button className="history-copy history-open" onClick={()=>onOpen(entry)}><strong>{entry.type}{index===0&&<span className="latest-inline">Остання</span>} <em className="duration-chip">{entry.duration ?? 20} хв</em></strong><span><Clock3 /> {entry.time}{entry.tags.map(tag => <em key={tag}>#{tag.toLowerCase().replaceAll(' ','_')}</em>)}</span>{entry.note && <p>«{entry.note}»</p>}</button><div className="session-meta"><span><Zap /> {entry.orgasms ?? 1}</span><span><Star /> {entry.rating ?? 4}</span></div><button className="more-button" onClick={()=>setMenu(menu===entry.id?null:entry.id)} aria-label="Більше дій"><MoreHorizontal /></button>{menu===entry.id&&<div className="entry-actions"><button onClick={()=>{onEdit(entry);setMenu(null)}}><Edit3/>Редагувати</button><button onClick={()=>{onDuplicate(entry);setMenu(null)}}><Copy/>Дублювати</button><button className="danger" onClick={()=>{onDelete(entry);setMenu(null)}}><Trash2/>Видалити</button></div>}</article>)}{!filtered.length&&<div className="history-empty"><Search/><strong>Нічого не знайдено</strong><span>Спробуй змінити пошук або фільтр.</span></div>}</div></section>;
+}
+
+function TaxonomyView({entries,taxonomy,archived,onAdd,onRename,onMerge,onArchive,onRestore}:{entries:Entry[];taxonomy:Taxonomy;archived:Taxonomy;onAdd:(group:TaxonomyGroup,value:string)=>void;onRename:(group:TaxonomyGroup,oldValue:string,newValue:string)=>void;onMerge:(group:TaxonomyGroup,oldValue:string,newValue:string)=>void;onArchive:(group:TaxonomyGroup,value:string)=>void;onRestore:(group:TaxonomyGroup,value:string)=>void}){
+  const groups:{id:TaxonomyGroup;label:string;hint:string;icon:LucideIcon}[]=[{id:'categories',label:'Категорії',hint:'Основний тип сесії',icon:Sparkles},{id:'tags',label:'Теги',hint:'Контекст і наміри',icon:Tag},{id:'places',label:'Місця',hint:'Конкретне місце',icon:MapPin},{id:'positions',label:'Пози',hint:'Положення тіла',icon:PersonStanding},{id:'locations',label:'Локації',hint:'Загальне оточення',icon:LocateFixed}];
+  const [group,setGroup]=useState<TaxonomyGroup>('categories'); const [query,setQuery]=useState(''); const [draft,setDraft]=useState(''); const [editing,setEditing]=useState<string|null>(null); const [editValue,setEditValue]=useState(''); const [merging,setMerging]=useState<string|null>(null); const [showArchived,setShowArchived]=useState(false);
+  const spec=groups.find(item=>item.id===group)!;
+  const all=[...new Set([...baseTaxonomy[group],...taxonomy[group]])]; const active=all.filter(value=>!archived[group].includes(value)); const visible=(showArchived?archived[group]:active).filter(value=>value.toLowerCase().includes(query.toLowerCase()));
+  const count=(value:string)=>entries.filter(entry=>group==='categories'?entry.type===value:(entry[group]??[]).includes(value)).length;
+  const add=()=>{const value=draft.trim();if(!value||all.some(item=>item.toLowerCase()===value.toLowerCase()))return;onAdd(group,value);setDraft('')};
+  return <section className="taxonomy-page"><div className="taxonomy-intro"><div><span className="section-kicker">Порядок без зайвих зусиль</span><h2>Усе, чим ти описуєш сесії</h2><p>Редагуй назви, об’єднуй дублікати й прибирай непотрібне. Старі записи залишаться цілими.</p></div><div className="taxonomy-total"><FolderCog/><strong>{active.length}</strong><span>активних значень</span></div></div><div className="taxonomy-tabs" role="tablist">{groups.map(item=><button role="tab" aria-selected={group===item.id} className={group===item.id?'active':''} onClick={()=>{setGroup(item.id);setEditing(null);setMerging(null)}} key={item.id}><item.icon/><span>{item.label}<small>{[...new Set([...baseTaxonomy[item.id],...taxonomy[item.id]])].filter(value=>!archived[item.id].includes(value)).length}</small></span></button>)}</div><div className="taxonomy-surface"><div className="taxonomy-toolbar"><div><span className="taxonomy-group-icon"><spec.icon/></span><span><strong>{spec.label}</strong><small>{spec.hint}</small></span></div><div className="taxonomy-tools"><label className="taxonomy-search"><Search/><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Знайти…" /></label><button className={showArchived?'active':''} onClick={()=>setShowArchived(value=>!value)}><Archive/>{showArchived?'Активні':'Архів'}<span>{archived[group].length}</span></button></div></div>{!showArchived&&<div className="taxonomy-add"><input value={draft} onChange={event=>setDraft(event.target.value)} onKeyDown={event=>{if(event.key==='Enter')add()}} placeholder={`Нова ${spec.label.toLowerCase().slice(0,-1)}…`} maxLength={40}/><Button onClick={add} disabled={!draft.trim()}><Plus/>Додати</Button></div>}<div className="taxonomy-list">{visible.map(value=>{const usage=count(value);return <article key={value} className={editing===value||merging===value?'open':''}>{editing===value?<div className="taxonomy-inline"><input autoFocus value={editValue} onChange={event=>setEditValue(event.target.value)} onKeyDown={event=>{if(event.key==='Enter'){onRename(group,value,editValue);setEditing(null)}if(event.key==='Escape')setEditing(null)}}/><button className="confirm" onClick={()=>{onRename(group,value,editValue);setEditing(null)}}><Check/>Зберегти</button><button onClick={()=>setEditing(null)}><X/></button></div>:merging===value?<div className="taxonomy-inline merge-inline"><span><Merge/>Об’єднати «{value}» з</span><select defaultValue="" onChange={event=>{if(event.target.value){onMerge(group,value,event.target.value);setMerging(null)}}}><option value="" disabled>Обери значення</option>{active.filter(item=>item!==value).map(item=><option key={item}>{item}</option>)}</select><button onClick={()=>setMerging(null)}><X/></button></div>:<><div className="taxonomy-name"><span>{value.slice(0,1).toUpperCase()}</span><div><strong>{value}</strong><small>{usage} {usage===1?'використання':'використань'}</small></div></div><div className="taxonomy-actions">{showArchived?<button className="restore" onClick={()=>onRestore(group,value)}><RotateCcw/>Відновити</button>:<><button onClick={()=>{setEditing(value);setEditValue(value)}}><Edit3/><span>Назва</span></button><button disabled={active.length<2} onClick={()=>setMerging(value)}><Merge/><span>Об’єднати</span></button><button onClick={()=>onArchive(group,value)}><Archive/><span>В архів</span></button></>}</div></>}</article>})}{!visible.length&&<div className="taxonomy-empty"><Archive/><strong>{showArchived?'Архів порожній':'Нічого не знайдено'}</strong><span>{showArchived?'Приховані значення з’являться тут.':'Спробуй інший запит або створи нове значення.'}</span></div>}</div></div><aside className="taxonomy-note"><ShieldCheck/><div><strong>Архів — це безпечно</strong><span>Значення зникне з форми нової сесії, але залишиться у попередніх записах і статистиці. Його завжди можна відновити.</span></div></aside></section>
 }
 
 function SessionView({entry,onBack,onEdit,onDuplicate,onDelete}:{entry:Entry;onBack:()=>void;onEdit:(entry:Entry)=>void;onDuplicate:(entry:Entry)=>void;onDelete:(entry:Entry)=>void}){
