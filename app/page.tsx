@@ -131,12 +131,19 @@ type Taxonomy = {
 };
 type TaxonomyGroup = keyof Taxonomy;
 type PrivacyMode = 'full' | 'neutral' | 'hidden';
+type GoalReminderCadence = 'auto' | 'daily' | 'twiceWeek' | 'weekly';
 type ReminderSettings = {
   privacy: PrivacyMode;
   gentle: { enabled: boolean; time: string; days: number[] };
   inactivity: { enabled: boolean; days: number; time: string };
   highActivity: { enabled: boolean; count: number };
-  goals: { enabled: boolean; time: string; day: number };
+  goals: {
+    enabled: boolean;
+    time: string;
+    day: number;
+    goalId?: string;
+    cadence: GoalReminderCadence;
+  };
 };
 type CustomReminder = {
   id: string;
@@ -217,7 +224,41 @@ const defaultReminderSettings: ReminderSettings = {
   gentle: { enabled: false, time: '20:00', days: [5, 6] },
   inactivity: { enabled: false, days: 6, time: '20:00' },
   highActivity: { enabled: false, count: 3 },
-  goals: { enabled: false, time: '19:00', day: 1 },
+  goals: { enabled: false, time: '19:00', day: 1, cadence: 'auto' },
+};
+
+const goalPeriodDays: Record<GoalPeriod, number> = {
+  day: 1,
+  week: 7,
+  fortnight: 14,
+  threeWeeks: 21,
+  month: 30,
+};
+
+const goalReminderDays = (
+  cadence: GoalReminderCadence,
+  goal: Goal,
+  weeklyDay: number,
+) => {
+  if (cadence === 'daily') return [0, 1, 2, 3, 4, 5, 6];
+  if (cadence === 'twiceWeek') return [1, 4];
+  if (cadence === 'weekly') return [weeklyDay];
+  if (goal.period === 'day') return [0, 1, 2, 3, 4, 5, 6];
+  if (goal.period === 'week') return [1, 4];
+  return [weeklyDay];
+};
+
+const goalReminderFrequency = (
+  cadence: GoalReminderCadence,
+  goal?: Goal,
+) => {
+  if (cadence === 'daily') return 'щодня';
+  if (cadence === 'twiceWeek') return 'двічі на тиждень';
+  if (cadence === 'weekly') return 'щотижня';
+  if (!goal) return 'за періодом цілі';
+  if (goal.period === 'day') return 'автоматично · щодня';
+  if (goal.period === 'week') return 'автоматично · двічі на тиждень';
+  return 'автоматично · щотижня';
 };
 const normalizeGoal = (
   goal: Partial<Goal> &
@@ -544,11 +585,31 @@ export default function Home() {
     if (storedArchived)
       setArchivedTaxonomy({ ...emptyTaxonomy, ...JSON.parse(storedArchived) });
     const storedReminderSettings = localStorage.getItem('metrika-reminder-settings');
-    if (storedReminderSettings)
+    if (storedReminderSettings) {
+      const storedSettings = JSON.parse(
+        storedReminderSettings,
+      ) as Partial<ReminderSettings>;
       setReminderSettings({
         ...defaultReminderSettings,
-        ...JSON.parse(storedReminderSettings),
+        ...storedSettings,
+        gentle: {
+          ...defaultReminderSettings.gentle,
+          ...storedSettings.gentle,
+        },
+        inactivity: {
+          ...defaultReminderSettings.inactivity,
+          ...storedSettings.inactivity,
+        },
+        highActivity: {
+          ...defaultReminderSettings.highActivity,
+          ...storedSettings.highActivity,
+        },
+        goals: {
+          ...defaultReminderSettings.goals,
+          ...storedSettings.goals,
+        },
       });
+    }
     const storedCustomReminders = localStorage.getItem('metrika-custom-reminders');
     if (storedCustomReminders) setCustomReminders(JSON.parse(storedCustomReminders));
     setNotificationPermission(Boolean(window.AndroidNotifications?.hasPermission()));
@@ -632,16 +693,56 @@ export default function Home() {
         triggerAt: now + 20 * 60000,
         enabled: true,
       });
-    if (reminderSettings.goals.enabled && goals.some((goal) => goal.status === 'active'))
+    const activeGoals = goals.filter((goal) => goal.status === 'active');
+    const reminderGoal =
+      activeGoals.find((goal) => goal.id === reminderSettings.goals.goalId) ??
+      activeGoals[0];
+    if (reminderSettings.goals.enabled && reminderGoal) {
+      const periodStart = now - goalPeriodDays[reminderGoal.period] * 86400000;
+      const matchingEntries = entries.filter((entry) => {
+        const stamp = new Date(entry.createdAt).getTime();
+        return (
+          stamp >= periodStart &&
+          (!reminderGoal.category || entry.type === reminderGoal.category) &&
+          (!reminderGoal.tag || entry.tags?.includes(reminderGoal.tag))
+        );
+      });
+      const progressValue =
+        reminderGoal.metric === 'minutes'
+          ? matchingEntries.reduce((sum, entry) => sum + entry.duration, 0)
+          : reminderGoal.metric === 'rating'
+            ? matchingEntries.length
+              ? matchingEntries.reduce((sum, entry) => sum + entry.rating, 0) /
+                matchingEntries.length
+              : 0
+            : matchingEntries.length;
+      const displayValue =
+        reminderGoal.metric === 'rating'
+          ? progressValue.toFixed(1)
+          : Math.round(progressValue).toString();
+      const unit =
+        reminderGoal.metric === 'minutes'
+          ? 'хв'
+          : reminderGoal.metric === 'rating'
+            ? '/5'
+            : 'сес.';
       native.push({
-        id: 'smart-goals',
-        title: 'Твоя ціль чекає без тиску',
-        body: 'Переглянь прогрес і виріши, чи ціль досі відповідає твоєму наміру.',
+        id: `smart-goal-${reminderGoal.id}`,
+        title: `Ціль: ${reminderGoal.title}`,
+        body:
+          reminderGoal.rule === 'atMost'
+            ? `Зараз ${displayValue} ${unit}, твоя межа — ${reminderGoal.target} ${unit}. Відкрий ціль, якщо хочеш переглянути прогрес або змінити план.`
+            : `Зараз ${displayValue} із ${reminderGoal.target} ${unit}. Відкрий ціль, якщо хочеш переглянути прогрес або змінити план.`,
         publicBody: privacyBody('Нагадування переглянути особисту ціль.'),
         time: reminderSettings.goals.time,
-        days: [reminderSettings.goals.day],
+        days: goalReminderDays(
+          reminderSettings.goals.cadence,
+          reminderGoal,
+          reminderSettings.goals.day,
+        ),
         enabled: true,
       });
+    }
     customReminders.forEach((reminder) => {
       const triggerAt = reminder.date
         ? new Date(`${reminder.date}T${reminder.time}:00`).getTime()
@@ -1625,6 +1726,8 @@ export default function Home() {
             <RemindersView
               settings={reminderSettings}
               custom={customReminders}
+              goals={goals}
+              onOpenGoals={() => nav('goals')}
               nativeAvailable={
                 typeof window !== 'undefined' && Boolean(window.AndroidNotifications)
               }
@@ -3006,6 +3109,8 @@ function HistoryView({
 function RemindersView({
   settings,
   custom,
+  goals,
+  onOpenGoals,
   nativeAvailable,
   permissionGranted,
   onRequestPermission,
@@ -3014,6 +3119,8 @@ function RemindersView({
 }: {
   settings: ReminderSettings;
   custom: CustomReminder[];
+  goals: Goal[];
+  onOpenGoals: () => void;
   nativeAvailable: boolean;
   permissionGranted: boolean;
   onRequestPermission: () => void;
@@ -3053,7 +3160,7 @@ function RemindersView({
         enabled: true,
       },
     );
-    setTitle(item?.title ?? 'Час зробити паузу й прислухатися до себе');
+    setTitle(item?.title ?? 'Зробити паузу на 10 хвилин');
     setTime(item?.time ?? '20:00');
     setDays(item?.days ?? [1, 3, 5]);
     setDate(item?.date ?? '');
@@ -3095,8 +3202,8 @@ function RemindersView({
         <div className="reminder-editor-surface">
           <label className="reminder-field">
             Що нагадати?
-            <textarea value={title} onChange={(event) => setTitle(event.target.value)} maxLength={140} />
-            <small>{title.length}/140 · На заблокованому екрані діє вибраний режим приватності.</small>
+            <textarea value={title} onChange={(event) => setTitle(event.target.value)} maxLength={140} placeholder="Наприклад: зробити паузу на 10 хвилин" />
+            <small>Напиши конкретну дію, яку легко зрозуміти з першого погляду · {title.length}/140</small>
           </label>
           <div className="reminder-form-grid">
             <label className="reminder-field">
@@ -3145,6 +3252,10 @@ function RemindersView({
         </div>
       </section>
     );
+  const activeGoals = goals.filter((goal) => goal.status === 'active');
+  const selectedGoal =
+    activeGoals.find((goal) => goal.id === settings.goals.goalId) ??
+    activeGoals[0];
   const smartCards = [
     {
       key: 'gentle' as const,
@@ -3170,9 +3281,13 @@ function RemindersView({
     {
       key: 'goals' as const,
       icon: Target,
-      title: 'Повернення до цілі',
-      text: 'Раз на тиждень запропонує спокійно переглянути прогрес і вирішити, чи ціль досі тобі підходить.',
-      meta: `${dayOptions.find((day) => day.value === settings.goals.day)?.label} · ${settings.goals.time}`,
+      title: 'Нагадування про ціль',
+      text: selectedGoal
+        ? `Покаже актуальний прогрес за ціллю «${selectedGoal.title}». Частота враховує її період, але її можна змінити.`
+        : 'Створи активну ціль, щоб нагадування показувало її актуальний прогрес.',
+      meta: selectedGoal
+        ? `${goalReminderFrequency(settings.goals.cadence, selectedGoal)} · ${settings.goals.time}`
+        : 'Немає активної цілі',
     },
   ];
   const updateSmart = <K extends keyof Omit<ReminderSettings, 'privacy'>>(
@@ -3207,12 +3322,12 @@ function RemindersView({
             const value = settings[card.key];
             return (
               <article className={`smart-reminder-card ${value.enabled ? 'enabled' : ''}`} key={card.key}>
-                <div className="smart-reminder-head"><span><Icon /></span><label className="reminder-switch"><input type="checkbox" checked={value.enabled} onChange={(event) => updateSmart(card.key, { enabled: event.target.checked })} /><i /></label></div>
+                <div className="smart-reminder-head"><span><Icon /></span><label className="reminder-switch"><input type="checkbox" checked={value.enabled} disabled={card.key === 'goals' && !selectedGoal} onChange={(event) => updateSmart(card.key, { enabled: event.target.checked })} /><i /></label></div>
                 <h3>{card.title}</h3><p>{card.text}</p><strong className="reminder-meta">{card.meta}</strong>
                 {card.key === 'gentle' && <div className="smart-controls"><input aria-label="Час делікатного нагадування" type="time" value={settings.gentle.time} onChange={(event) => updateSmart('gentle', { time: event.target.value })} /><div className="mini-days">{dayOptions.map((day) => <button key={day.value} className={settings.gentle.days.includes(day.value) ? 'active' : ''} onClick={() => updateSmart('gentle', { days: settings.gentle.days.includes(day.value) ? settings.gentle.days.filter((value) => value !== day.value) : [...settings.gentle.days, day.value] })}>{day.label[0]}</button>)}</div></div>}
                 {card.key === 'inactivity' && <div className="smart-controls two"><label>Пауза<select value={settings.inactivity.days} onChange={(event) => updateSmart('inactivity', { days: Number(event.target.value) })}>{[3, 5, 6, 7, 14, 30].map((value) => <option key={value} value={value}>{value} днів</option>)}</select></label><label>Час<input type="time" value={settings.inactivity.time} onChange={(event) => updateSmart('inactivity', { time: event.target.value })} /></label></div>}
                 {card.key === 'highActivity' && <div className="smart-controls"><label>Вважати піком<select value={settings.highActivity.count} onChange={(event) => updateSmart('highActivity', { count: Number(event.target.value) })}>{[2, 3, 4, 5].map((value) => <option key={value} value={value}>{value} сесії</option>)}</select></label></div>}
-                {card.key === 'goals' && <div className="smart-controls two"><label>День<select value={settings.goals.day} onChange={(event) => updateSmart('goals', { day: Number(event.target.value) })}>{dayOptions.map((day) => <option key={day.value} value={day.value}>{day.label}</option>)}</select></label><label>Час<input type="time" value={settings.goals.time} onChange={(event) => updateSmart('goals', { time: event.target.value })} /></label></div>}
+                {card.key === 'goals' && (selectedGoal ? <div className="goal-reminder-controls"><label>Активна ціль<select value={selectedGoal.id} onChange={(event) => updateSmart('goals', { goalId: event.target.value })}>{activeGoals.map((goal) => <option key={goal.id} value={goal.id}>{goal.title}</option>)}</select></label><label>Частота<select value={settings.goals.cadence} onChange={(event) => updateSmart('goals', { cadence: event.target.value as GoalReminderCadence })}><option value="auto">Автоматично</option><option value="daily">Щодня</option><option value="twiceWeek">Двічі на тиждень</option><option value="weekly">Щотижня</option></select></label><label>Час<input type="time" value={settings.goals.time} onChange={(event) => updateSmart('goals', { time: event.target.value })} /></label>{settings.goals.cadence === 'weekly' && <label>День<select value={settings.goals.day} onChange={(event) => updateSmart('goals', { day: Number(event.target.value) })}>{dayOptions.map((day) => <option key={day.value} value={day.value}>{day.label}</option>)}</select></label>}</div> : <button className="reminder-goal-link" onClick={onOpenGoals}><Plus /> Створити ціль</button>)}
               </article>
             );
           })}
