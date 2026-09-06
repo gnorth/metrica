@@ -1484,12 +1484,12 @@ export default function Home() {
             : goalIntent === 'screenFree'
               ? `Я хочу мати щонайменше ${goalTarget} сес. без екранів протягом ${periodLabels[goalPeriod]}.`
               : `Я хочу мати щонайменше ${goalTarget} сес. протягом ${periodLabels[goalPeriod]}.`;
-  const goalPresets: { title: string; summary: string; icon: LucideIcon; intent: GoalIntent; metric: GoalMetric; target: number; period: GoalPeriod; rule: 'atLeast' | 'atMost'; category?: string; tag?: string }[] = [
-    { title: 'Мій стабільний ритм', summary: '3 сесії на тиждень', icon: Flame, intent: 'regularity', metric: 'sessions', target: 3, period: 'week', rule: 'atLeast' },
-    { title: 'Час для себе', summary: '60 хвилин на тиждень', icon: Clock3, intent: 'time', metric: 'minutes', target: 60, period: 'week', rule: 'atLeast' },
-    { title: 'Тиждень без екранів', summary: '3 сесії без екранів', icon: Sparkles, intent: 'screenFree', metric: 'sessions', target: 3, period: 'week', rule: 'atLeast', tag: 'Без екранів' },
-    { title: 'Тренування контролю', summary: '4 Edging-сесії за місяць', icon: Zap, intent: 'control', metric: 'sessions', target: 4, period: 'month', rule: 'atLeast', category: 'Edging' },
-    { title: 'Більше задоволення', summary: 'Середня оцінка 4/5', icon: Star, intent: 'quality', metric: 'rating', target: 4, period: 'month', rule: 'atLeast' },
+  const goalPresets: { title: string; summary: string; intent: GoalIntent; metric: GoalMetric; target: number; period: GoalPeriod; rule: 'atLeast' | 'atMost'; category?: string; tag?: string }[] = [
+    { title: 'Мій стабільний ритм', summary: '3 сесії на тиждень', intent: 'regularity', metric: 'sessions', target: 3, period: 'week', rule: 'atLeast' },
+    { title: 'Час для себе', summary: '60 хвилин на тиждень', intent: 'time', metric: 'minutes', target: 60, period: 'week', rule: 'atLeast' },
+    { title: 'Тиждень без екранів', summary: '3 сесії без екранів', intent: 'screenFree', metric: 'sessions', target: 3, period: 'week', rule: 'atLeast', tag: 'Без екранів' },
+    { title: 'Тренування контролю', summary: '4 Edging-сесії за місяць', intent: 'control', metric: 'sessions', target: 4, period: 'month', rule: 'atLeast', category: 'Edging' },
+    { title: 'Більше задоволення', summary: 'Середня оцінка 4/5', intent: 'quality', metric: 'rating', target: 4, period: 'month', rule: 'atLeast' },
   ];
   const applyGoalPreset = (preset: (typeof goalPresets)[number]) => {
     setGoalTitle(preset.title); setGoalIntent(preset.intent); setGoalMetric(preset.metric); setGoalTarget(preset.target); setGoalPeriod(preset.period); setGoalRule(preset.rule); setGoalCategory(preset.category ?? ''); setGoalTag(preset.tag ?? '');
@@ -2178,7 +2178,7 @@ export default function Home() {
           </header>
           <div className="goal-page-surface">
             <div className="goal-form">
-            {!goalEditingId && <section className="goal-presets"><div><span>Популярні шаблони</span><small>Обери готовий варіант — усе можна змінити нижче</small></div><div>{goalPresets.map(preset => <button type="button" key={preset.title} onClick={() => applyGoalPreset(preset)}><preset.icon/><span><strong>{preset.title}</strong><small>{preset.summary}</small></span><ChevronRight/></button>)}</div></section>}
+            {!goalEditingId && <section className="goal-presets"><div><span>Популярні шаблони</span><small>Обери готовий варіант або налаштуй свій нижче</small></div><div>{goalPresets.map(preset => <button type="button" key={preset.title} onClick={() => applyGoalPreset(preset)}><strong>{preset.title}</strong><small>{preset.summary}</small></button>)}</div></section>}
             <fieldset className="goal-intent-selector">
               <legend>1. Обери свій намір</legend>
               <div>
