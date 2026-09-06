@@ -3411,23 +3411,19 @@ function SessionView({
       </div>
       <div className="session-metrics">
         <article>
-          <Clock3 />
-          <span>Тривалість</span>
+          <div className="session-metric-head"><Clock3 /><span>Тривалість</span></div>
           <strong>{entry.duration} хв</strong>
         </article>
         <article>
-          <Star />
-          <span>Задоволення</span>
+          <div className="session-metric-head"><Star /><span>Задоволення</span></div>
           <strong>{entry.rating}/5</strong>
         </article>
-        <article>
-          <Heart />
-          <span>Настрій</span>
+        <article className="session-metric-mood">
+          <div className="session-metric-head"><Heart /><span>Настрій</span></div>
           <strong>{entry.moods?.[0] ?? 'Не вказано'}</strong>
         </article>
         <article>
-          <Zap />
-          <span>Оргазми</span>
+          <div className="session-metric-head"><Zap /><span>Оргазми</span></div>
           <strong>{entry.orgasms}</strong>
         </article>
       </div>
