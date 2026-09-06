@@ -2,19 +2,6 @@ name: Build Android APK
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "app/**"
-      - "components/**"
-      - "lib/**"
-      - "public/**"
-      - "android-web/**"
-      - "android/**"
-      - "package.json"
-      - "package-lock.json"
-      - "vite.android.config.ts"
-      - ".github/workflows/android-apk.yml"
 
 permissions:
   contents: read
