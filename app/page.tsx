@@ -3995,6 +3995,12 @@ function InsightsView({
   onCategoryFocus: (category: string | null) => void;
 }) {
   const [range, setRange] = useState(30);
+  const rangeOptions = [
+    { value: 7, label: 'Тиждень' },
+    { value: 30, label: 'Місяць' },
+    { value: 90, label: '3 місяці' },
+    { value: 365, label: 'Рік' },
+  ];
   const [heatMetric, setHeatMetric] = useState<'count' | 'rating'>(
     'count',
   );
@@ -4020,17 +4026,46 @@ function InsightsView({
     (sum, item) => sum + (item.orgasms ?? 1),
     0,
   );
-  const series = Array.from({ length: Math.min(range, 14) }, (_, index) => {
-    const date = new Date();
-    date.setDate(date.getDate() - (Math.min(range, 14) - 1 - index));
-    const matches = scoped.filter(
-      (item) => new Date(item.createdAt).toDateString() === date.toDateString(),
-    );
+  const seriesBuckets = (() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (range <= 30) {
+      return Array.from({ length: range }, (_, index) => {
+        const start = new Date(today);
+        start.setDate(start.getDate() - (range - 1 - index));
+        const end = new Date(start);
+        end.setDate(end.getDate() + 1);
+        return { start, end };
+      });
+    }
+    if (range <= 90) {
+      return Array.from({ length: 13 }, (_, index) => {
+        const end = new Date(today);
+        end.setDate(end.getDate() - (12 - index) * 7 + 1);
+        const start = new Date(end);
+        start.setDate(start.getDate() - 7);
+        return { start, end };
+      });
+    }
+    return Array.from({ length: 12 }, (_, index) => {
+      const start = new Date(today.getFullYear(), today.getMonth() - (11 - index), 1);
+      const end = new Date(start.getFullYear(), start.getMonth() + 1, 1);
+      return { start, end };
+    });
+  })();
+  const series = seriesBuckets.map(({ start, end }) => {
+    const matches = scoped.filter((item) => {
+      const createdAt = new Date(item.createdAt).getTime();
+      return createdAt >= start.getTime() && createdAt < end.getTime();
+    });
     return {
-      day: new Intl.DateTimeFormat('uk-UA', {
-        day: 'numeric',
-        month: 'short',
-      }).format(date),
+      day:
+        range >= 365
+          ? new Intl.DateTimeFormat('uk-UA', { month: 'short' }).format(start)
+          : new Intl.DateTimeFormat('uk-UA', {
+              day: 'numeric',
+              month: range > 30 ? 'short' : undefined,
+            }).format(start),
       sessions: matches.length,
       minutes: matches.reduce((sum, item) => sum + (item.duration ?? 20), 0),
       duration: matches.length
@@ -4341,13 +4376,13 @@ function InsightsView({
           </p>
         </div>
         <div className="range-switch" aria-label="Період статистики">
-          {[7, 30, 90].map((value) => (
+          {rangeOptions.map((option) => (
             <button
-              key={value}
-              onClick={() => setRange(value)}
-              className={range === value ? 'active' : ''}
+              key={option.value}
+              onClick={() => setRange(option.value)}
+              className={range === option.value ? 'active' : ''}
             >
-              {value} днів
+              {option.label}
             </button>
           ))}
         </div>
@@ -4814,6 +4849,20 @@ function InsightsView({
               <h3>Коли виникає активність</h3>
             </div>
             {scoped.length > 0 && <span className="trend-badge">пік · {peakHour.label}</span>}
+          </div>
+          <div className="day-cycle-range" aria-label="Період добового ритму">
+            <span>Показати за</span>
+            <div className="range-switch">
+              {rangeOptions.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => setRange(option.value)}
+                  className={range === option.value ? 'active' : ''}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="day-cycle-chart" aria-label="Розподіл активності протягом доби">
             {hourlyData.map((item) => (
