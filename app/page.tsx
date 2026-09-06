@@ -32,6 +32,7 @@ import {
   RotateCcw,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   Sparkles,
   Star,
   Tag,
@@ -296,6 +297,19 @@ const formatDay = (iso: string) =>
     day: 'numeric',
     month: 'short',
   }).format(new Date(iso));
+const pluralUk = (
+  count: number,
+  one: string,
+  few: string,
+  many: string,
+) => {
+  const lastTwo = Math.abs(count) % 100;
+  const last = lastTwo % 10;
+  if (lastTwo >= 11 && lastTwo <= 14) return many;
+  if (last === 1) return one;
+  if (last >= 2 && last <= 4) return few;
+  return many;
+};
 const bytesToBase64 = (bytes: Uint8Array) =>
   btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(''));
 const base64ToBytes = (value: string) =>
@@ -398,10 +412,15 @@ export default function Home() {
     entry: Entry;
     index: number;
   } | null>(null);
+  const [deletedGoal, setDeletedGoal] = useState<{
+    goal: Goal;
+    index: number;
+  } | null>(null);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [showDemoNote, setShowDemoNote] = useState(true);
   const [goalOpen, setGoalOpen] = useState(false);
   const [goalEditingId, setGoalEditingId] = useState<string | null>(null);
+  const [goalAdvanced, setGoalAdvanced] = useState(false);
   const [goalTitle, setGoalTitle] = useState('Усвідомлений час для себе');
   const [goalTarget, setGoalTarget] = useState(60);
   const [goalMetric, setGoalMetric] = useState<GoalMetric>('minutes');
@@ -1025,12 +1044,14 @@ export default function Home() {
     setGoalIntent(intent);
     setGoalCategory(goal?.category ?? '');
     setGoalTag(goal?.tag ?? '');
+    setGoalAdvanced(Boolean(goal?.category || goal?.tag));
     setGoalOpen(true);
     window.scrollTo({ top: 0 });
   };
   const closeGoalForm = () => {
     setGoalOpen(false);
     setGoalEditingId(null);
+    setGoalAdvanced(false);
   };
   const saveGoal = () => {
     const record: Goal = {
@@ -1061,8 +1082,20 @@ export default function Home() {
     persistGoals(
       goals.map((item) => (item.id === id ? { ...item, ...patch } : item)),
     );
-  const deleteGoal = (id: string) =>
+  const deleteGoal = (id: string) => {
+    const index = goals.findIndex((item) => item.id === id);
+    const goal = goals[index];
+    if (!goal) return;
     persistGoals(goals.filter((item) => item.id !== id));
+    setDeletedGoal({ goal, index });
+  };
+  const undoDeleteGoal = () => {
+    if (!deletedGoal) return;
+    const next = [...goals];
+    next.splice(Math.max(0, deletedGoal.index), 0, deletedGoal.goal);
+    persistGoals(next);
+    setDeletedGoal(null);
+  };
   const currentDate = new Intl.DateTimeFormat('uk-UA', {
     weekday: 'long',
     day: 'numeric',
@@ -1386,7 +1419,6 @@ export default function Home() {
           {view === 'insights' && (
             <InsightsView
               entries={entries}
-              stats={stats}
               focus={statFocus}
               onFocus={setStatFocus}
               categoryFocus={categoryFocus}
@@ -1460,6 +1492,20 @@ export default function Home() {
             <small>Його можна повернути</small>
           </div>
           <button onClick={undoDelete}>
+            <RotateCcw /> Скасувати
+          </button>
+        </div>
+      )}
+      {deletedGoal && (
+        <div className="save-toast delete-toast" role="status">
+          <span className="toast-check">
+            <Trash2 />
+          </span>
+          <div>
+            <strong>Ціль видалено</strong>
+            <small>«{deletedGoal.goal.title}» можна повернути</small>
+          </div>
+          <button onClick={undoDeleteGoal}>
             <RotateCcw /> Скасувати
           </button>
         </div>
@@ -1960,48 +2006,67 @@ export default function Home() {
                   : 'Додай назву, щоб створити ціль.'}
               </small>
             </label>
-            {goalIntent !== 'screenFree' && (
-              <div className="goal-filter-box">
-                <div>
-                  <strong>Хочеш уточнити?</strong>
+            {goalIntent !== 'screenFree' && goalIntent !== 'control' && (
+              <section className="goal-advanced-section">
+                <button
+                  type="button"
+                  className="goal-advanced-toggle"
+                  onClick={() => setGoalAdvanced((value) => !value)}
+                  aria-expanded={goalAdvanced}
+                >
                   <span>
-                    Необов’язково — можна враховувати лише певні сесії
+                    <SlidersHorizontal />
+                    <strong>Уточнити ціль</strong>
+                    <small>
+                      {goalCategory || goalTag
+                        ? [goalCategory, goalTag].filter(Boolean).join(' · ')
+                        : 'Необов’язково: категорія або тег'}
+                    </small>
                   </span>
-                </div>
-                <div className="goal-form-grid">
-                  <label>
-                    Категорія
-                    <select
-                      value={goalCategory}
-                      onChange={(event) => setGoalCategory(event.target.value)}
-                    >
-                      <option value="">Усі категорії</option>
-                      {[
-                        ...new Set([
-                          ...typeOptions.map((item) => item.id),
-                          ...taxonomy.categories,
-                        ]),
-                      ].map((item) => (
-                        <option key={item}>{item}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Тег
-                    <select
-                      value={goalTag}
-                      onChange={(event) => setGoalTag(event.target.value)}
-                    >
-                      <option value="">Будь-який тег</option>
-                      {[
-                        ...new Set([...defaultTagOptions, ...taxonomy.tags]),
-                      ].map((item) => (
-                        <option key={item}>{item}</option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-              </div>
+                  <ChevronRight />
+                </button>
+                {goalAdvanced && (
+                  <div className="goal-filter-box">
+                    <div>
+                      <strong>Які записи враховувати?</strong>
+                      <span>Залиш «усі», якщо ціль стосується будь-яких сесій.</span>
+                    </div>
+                    <div className="goal-form-grid">
+                      <label>
+                        Категорія
+                        <select
+                          value={goalCategory}
+                          onChange={(event) => setGoalCategory(event.target.value)}
+                        >
+                          <option value="">Усі категорії</option>
+                          {[
+                            ...new Set([
+                              ...typeOptions.map((item) => item.id),
+                              ...taxonomy.categories,
+                            ]),
+                          ].map((item) => (
+                            <option key={item}>{item}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Тег
+                        <select
+                          value={goalTag}
+                          onChange={(event) => setGoalTag(event.target.value)}
+                        >
+                          <option value="">Будь-який тег</option>
+                          {[
+                            ...new Set([...defaultTagOptions, ...taxonomy.tags]),
+                          ].map((item) => (
+                            <option key={item}>{item}</option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </section>
             )}
             <div className="goal-dialog-actions">
               <button onClick={closeGoalForm}>Скасувати</button>
@@ -2339,7 +2404,7 @@ function TodayView({
           <div className="category-list">
             {visibleCategories.map((item, index) => {
               const share = Math.round((item.count / categoryEntries.length) * 100);
-              return <button key={item.name} onClick={() => openCategoryStat(item.name)}><span className="category-color" style={{ background: categoryPalette[index] }} /><strong>{item.name}</strong><span>{share}%</span><em>{item.count} {item.count === 1 ? 'сесія' : 'сесії'}</em><ChevronRight /></button>;
+              return <button key={item.name} onClick={() => openCategoryStat(item.name)}><span className="category-color" style={{ background: categoryPalette[index] }} /><strong>{item.name}</strong><span>{share}%</span><em>{item.count} {pluralUk(item.count, 'сесія', 'сесії', 'сесій')}</em><ChevronRight /></button>;
             })}
           </div>
           <div className="category-distribution-foot"><span>{categoryEntries.length < 5 ? `Поки лише ${categoryEntries.length} ${categoryEntries.length === 1 ? 'запис' : 'записи'} — розподіл ще може сильно змінитися.` : `На основі ${categoryEntries.length} записів за обраний період.`}</span><button onClick={openInsights}>Уся статистика <ChevronRight /></button></div>
@@ -2904,6 +2969,7 @@ function DataView({
         entries.some((current) => current.id === item.id),
       ).length
     : 0;
+  const statusTone = /успішно|створено/i.test(status) ? 'success' : 'error';
   return (
     <section className="data-page">
       <div className="data-hero">
@@ -2934,9 +3000,17 @@ function DataView({
             <input
               type="password"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                if (status) setStatus('');
+              }}
               placeholder="Мінімум 6 символів"
+              autoComplete="new-password"
+              aria-describedby="backup-password-help"
             />
+            <small id="backup-password-help">
+              Не зберігається в застосунку. Він знадобиться для відновлення.
+            </small>
           </label>
           <Button onClick={exportEncrypted}>
             <Download />
@@ -2993,8 +3067,9 @@ function DataView({
         </article>
       </div>
       {status && (
-        <div className="data-status" role="status">
-          {status}
+        <div className={`data-status ${statusTone}`} role="status" aria-live="polite">
+          {statusTone === 'success' ? <Check /> : <ShieldCheck />}
+          <span>{status}</span>
         </div>
       )}
       {pending && (
@@ -3573,7 +3648,7 @@ function CalendarView({
                 key={day}
                 className={`${selectedDay === day ? 'selected' : ''} ${isToday ? 'today' : ''} ${sessions.length ? 'has-session' : ''}`}
                 onClick={() => setSelectedDay(day)}
-                aria-label={`${day} число${sessions.length ? `, ${sessions.length} ${sessions.length === 1 ? 'сесія' : 'сесії'}` : ', без сесій'}`}
+                aria-label={`${day} число${sessions.length ? `, ${sessions.length} ${pluralUk(sessions.length, 'сесія', 'сесії', 'сесій')}` : ', без сесій'}`}
               >
                 <span>{day}</span>
                 {sessions.length > 0 && (
@@ -3992,20 +4067,12 @@ function GoalsView({
 
 function InsightsView({
   entries,
-  stats,
   focus,
   onFocus,
   categoryFocus,
   onCategoryFocus,
 }: {
   entries: Entry[];
-  stats: {
-    avg: string;
-    avgDuration: number;
-    totalOrgasms: number;
-    weekCount: number;
-    eveningShare: number;
-  };
   focus: StatFocus | null;
   onFocus: (focus: StatFocus | null) => void;
   categoryFocus: string | null;
@@ -4383,7 +4450,7 @@ function InsightsView({
           ))}
         </div>
       </section>
-      {categoryFocus && <section className="category-focus-banner" aria-live="polite"><div><span>Фільтр</span><strong>{categoryFocus}</strong><small>{scoped.length} {scoped.length === 1 ? 'сесія' : 'сесій'} за {range} днів</small></div><button onClick={() => onCategoryFocus(null)}><X /><span>Скинути фільтр</span></button></section>}
+      {categoryFocus && <section className="category-focus-banner" aria-live="polite"><div><span>Фільтр</span><strong>{categoryFocus}</strong><small>{scoped.length} {pluralUk(scoped.length, 'сесія', 'сесії', 'сесій')} за {range} днів</small></div><button onClick={() => onCategoryFocus(null)}><X /><span>Скинути фільтр</span></button></section>}
       <section className="stats-kpis">
         <article>
           <span>
@@ -4784,7 +4851,7 @@ function InsightsView({
           <div className="day-cycle-content">
             <div className="day-cycle-chart" aria-label="Розподіл активності протягом доби">
               {hourlyData.map((item) => (
-                <div key={item.hour} title={`${item.label}: ${item.count} ${item.count === 1 ? 'сесія' : 'сесій'}`}>
+                <div key={item.hour} title={`${item.label}: ${item.count} ${pluralUk(item.count, 'сесія', 'сесії', 'сесій')}`}>
                   <i
                     style={{
                       height: `${Math.max(
@@ -4821,7 +4888,7 @@ function InsightsView({
                   : 'Твій добовий патерн ще формується'}
               </strong>
               {scoped.length
-                ? `${dominantDayPart.value} ${dominantDayPart.value === 1 ? 'сесія' : 'сесій'}, середня оцінка ${dominantDayPart.avgRating.toFixed(1)}/5. ${hasReliableSample ? 'Це тенденція' : 'Поки даних замало для висновку'} за вибрані ${range} днів.`
+                ? `${dominantDayPart.value} ${pluralUk(dominantDayPart.value, 'сесія', 'сесії', 'сесій')}, середня оцінка ${dominantDayPart.avgRating.toFixed(1)}/5. ${hasReliableSample ? 'Це тенденція' : 'Поки даних замало для висновку'} за вибрані ${range} днів.`
                 : 'Після першого запису тут з’явиться розподіл за часом доби.'}
             </span>
           </div>
@@ -5057,7 +5124,7 @@ function InsightsView({
                   </div>
                   <small>
                     {item.avg.toFixed(1)}/5 · {item.count}{' '}
-                    {item.count === 1 ? 'сесія' : 'сесії'}
+                    {pluralUk(item.count, 'сесія', 'сесії', 'сесій')}
                   </small>
                 </div>
               </article>

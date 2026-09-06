@@ -9,7 +9,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.WindowInsets;
 import android.webkit.CookieManager;
 import android.webkit.MimeTypeMap;
 import android.webkit.ValueCallback;
@@ -20,6 +19,7 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
+import android.window.OnBackInvokedDispatcher;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,11 +36,17 @@ public final class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            getWindow().setDecorFitsSystemWindows(false);
+            // Let Android reserve the status/navigation bars. The web UI handles only
+            // its own bottom navigation, avoiding double or missing safe-area offsets.
+            getWindow().setDecorFitsSystemWindows(true);
         }
         getWindow().setStatusBarColor(Color.rgb(245, 243, 234));
         getWindow().setNavigationBarColor(Color.rgb(245, 243, 234));
-        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+        int systemUi = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            systemUi |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        }
+        getWindow().getDecorView().setSystemUiVisibility(systemUi);
 
         FrameLayout safeRoot = new FrameLayout(this);
         safeRoot.setBackgroundColor(Color.rgb(245, 243, 234));
@@ -50,27 +56,14 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT);
         safeRoot.addView(webView, webParams);
-        safeRoot.setOnApplyWindowInsetsListener((view, insets) -> {
-            FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) webView.getLayoutParams();
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                android.graphics.Insets bars = insets.getInsets(
-                        WindowInsets.Type.systemBars());
-                android.graphics.Insets keyboard = insets.getInsets(
-                        WindowInsets.Type.ime());
-                params.setMargins(
-                        bars.left,
-                        bars.top,
-                        bars.right,
-                        Math.max(bars.bottom, keyboard.bottom));
-            } else {
-                params.setMargins(0, 0, 0, 0);
-            }
-            webView.setLayoutParams(params);
-            return insets;
-        });
         setContentView(safeRoot);
-        safeRoot.requestApplyInsets();
         configureWebView();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                    this::handleBackRequest);
+        }
 
         if (savedInstanceState == null) {
             webView.loadUrl(APP_URL);
@@ -90,6 +83,7 @@ public final class MainActivity extends Activity {
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
         settings.setMediaPlaybackRequiresUserGesture(false);
+        webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
 
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
@@ -196,6 +190,10 @@ public final class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        handleBackRequest();
+    }
+
+    private void handleBackRequest() {
         if (webView == null) {
             closeApp();
             return;
@@ -208,7 +206,7 @@ public final class MainActivity extends Activity {
     }
 
     private void closeApp() {
-        super.onBackPressed();
+        finish();
     }
 
     @Override
