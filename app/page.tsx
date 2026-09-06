@@ -4874,7 +4874,7 @@ function InsightsView({
                 </div>
                 {group.items.length ? (
                   <div className="context-ranking">
-                    {group.items.map((item) => (
+                    {group.items.slice(0, 3).map((item) => (
                       <div key={item.label}>
                         <div className="context-ranking-copy">
                           <strong>{item.label}</strong>
@@ -4886,6 +4886,28 @@ function InsightsView({
                         </div>
                       </div>
                     ))}
+                    {group.items.length > 3 && (
+                      <details className="context-ranking-more">
+                        <summary>
+                          Показати ще {group.items.length - 3}
+                          <ChevronRight />
+                        </summary>
+                        <div>
+                          {group.items.slice(3).map((item) => (
+                            <div className="context-ranking-extra" key={item.label}>
+                              <div className="context-ranking-copy">
+                                <strong>{item.label}</strong>
+                                <span>{item.count} {item.count === 1 ? 'сесія' : item.count < 5 ? 'сесії' : 'сесій'} · {item.share}%</span>
+                              </div>
+                              <div className="context-ranking-score">
+                                <i><b style={{ width: `${(item.count / maximum) * 100}%` }} /></i>
+                                <strong>{item.rating.toFixed(1)}<small>/5</small></strong>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
                   </div>
                 ) : (
                   <div className="context-empty">Ще немає даних за цей період</div>
