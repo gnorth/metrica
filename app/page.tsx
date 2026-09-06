@@ -152,6 +152,7 @@ type CustomReminder = {
   days: number[];
   date?: string;
   endsAt?: string;
+  goalId?: string;
   enabled: boolean;
 };
 type NativeReminder = {
@@ -747,11 +748,18 @@ export default function Home() {
       const triggerAt = reminder.date
         ? new Date(`${reminder.date}T${reminder.time}:00`).getTime()
         : undefined;
+      const linkedGoal = goals.find((goal) => goal.id === reminder.goalId);
       native.push({
         id: reminder.id,
         title: 'Твоє нагадування',
-        body: reminder.title,
-        publicBody: privacyBody(reminder.title),
+        body: linkedGoal
+          ? `${reminder.title} · Ціль: ${linkedGoal.title}`
+          : reminder.title,
+        publicBody: privacyBody(
+          linkedGoal
+            ? `${reminder.title} · Ціль: ${linkedGoal.title}`
+            : reminder.title,
+        ),
         time: reminder.time,
         days: reminder.date ? undefined : reminder.days,
         triggerAt,
@@ -3134,7 +3142,10 @@ function RemindersView({
   const [days, setDays] = useState<number[]>([1, 3, 5]);
   const [date, setDate] = useState('');
   const [endsAt, setEndsAt] = useState('');
-  const [repeat, setRepeat] = useState(true);
+  const [goalId, setGoalId] = useState('');
+  const [scheduleMode, setScheduleMode] = useState<
+    'once' | 'daily' | 'weekdays' | 'custom'
+  >('custom');
   const dayOptions = [
     { value: 1, label: 'Пн' },
     { value: 2, label: 'Вт' },
@@ -3150,6 +3161,36 @@ function RemindersView({
     settings.highActivity.enabled,
     settings.goals.enabled,
   ].filter(Boolean).length;
+  const activeGoals = goals.filter((goal) => goal.status === 'active');
+  const selectedGoal =
+    activeGoals.find((goal) => goal.id === settings.goals.goalId) ??
+    activeGoals[0];
+  const reminderPresets = [
+    'Записати сесію, коли буде зручно',
+    'Переглянути прогрес обраної цілі',
+    'Запланувати час для себе',
+    'Спробувати сесію без екранів',
+  ];
+  const customScheduleLabel = (item: CustomReminder) => {
+    const schedule = item.date
+      ? new Intl.DateTimeFormat('uk-UA', {
+          day: 'numeric',
+          month: 'long',
+        }).format(new Date(`${item.date}T12:00:00`))
+      : item.days.length === 7
+        ? 'Щодня'
+        : item.days.length === 5 &&
+            [1, 2, 3, 4, 5].every((day) => item.days.includes(day))
+          ? 'У будні'
+          : item.days
+              .map(
+                (value) =>
+                  dayOptions.find((day) => day.value === value)?.label,
+              )
+              .join(' · ');
+    const linkedGoal = activeGoals.find((goal) => goal.id === item.goalId);
+    return linkedGoal ? `${schedule} · Ціль: ${linkedGoal.title}` : schedule;
+  };
   const openEditor = (item?: CustomReminder) => {
     setEditing(
       item ?? {
@@ -3160,23 +3201,48 @@ function RemindersView({
         enabled: true,
       },
     );
-    setTitle(item?.title ?? 'Зробити паузу на 10 хвилин');
+    setTitle(item?.title ?? '');
     setTime(item?.time ?? '20:00');
     setDays(item?.days ?? [1, 3, 5]);
     setDate(item?.date ?? '');
     setEndsAt(item?.endsAt ?? '');
-    setRepeat(!item?.date);
+    setGoalId(item?.goalId ?? '');
+    setScheduleMode(
+      item?.date
+        ? 'once'
+        : item?.days.length === 7
+          ? 'daily'
+          : item?.days.length === 5 &&
+              [1, 2, 3, 4, 5].every((day) => item.days.includes(day))
+            ? 'weekdays'
+            : 'custom',
+    );
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   const saveCustom = () => {
-    if (!editing || !title.trim() || (repeat ? !days.length : !date)) return;
+    if (
+      !editing ||
+      !title.trim() ||
+      (scheduleMode === 'once' ? !date : scheduleMode === 'custom' && !days.length)
+    )
+      return;
+    const scheduledDays =
+      scheduleMode === 'daily'
+        ? [0, 1, 2, 3, 4, 5, 6]
+        : scheduleMode === 'weekdays'
+          ? [1, 2, 3, 4, 5]
+          : scheduleMode === 'custom'
+            ? days
+            : [];
     const record: CustomReminder = {
       ...editing,
       title: title.trim(),
       time,
-      days: repeat ? days : [],
-      date: repeat ? undefined : date,
-      endsAt: repeat && endsAt ? endsAt : undefined,
+      days: scheduledDays,
+      date: scheduleMode === 'once' ? date : undefined,
+      endsAt:
+        scheduleMode !== 'once' && endsAt ? endsAt : undefined,
+      goalId: goalId || undefined,
       enabled: true,
     };
     onCustomChange(
@@ -3201,9 +3267,20 @@ function RemindersView({
         </div>
         <div className="reminder-editor-surface">
           <label className="reminder-field">
-            Що нагадати?
-            <textarea value={title} onChange={(event) => setTitle(event.target.value)} maxLength={140} placeholder="Наприклад: зробити паузу на 10 хвилин" />
-            <small>Напиши конкретну дію, яку легко зрозуміти з першого погляду · {title.length}/140</small>
+            Текст нагадування
+            <textarea value={title} onChange={(event) => setTitle(event.target.value)} maxLength={140} placeholder="Наприклад: записати сесію, коли буде зручно" />
+            <small>Напиши, що саме хочеш зробити · {title.length}/140</small>
+          </label>
+          <div className="reminder-presets" aria-label="Готові варіанти тексту">
+            <span>Швидкий вибір</span>
+            <div>{reminderPresets.map((preset) => <button key={preset} className={title === preset ? 'active' : ''} onClick={() => setTitle(preset)}>{preset}</button>)}</div>
+          </div>
+          <label className="reminder-field">
+            Пов’язати з ціллю <small>Необов’язково — назва цілі з’явиться в нагадуванні</small>
+            <select value={goalId} onChange={(event) => setGoalId(event.target.value)}>
+              <option value="">Без прив’язки</option>
+              {activeGoals.map((goal) => <option key={goal.id} value={goal.id}>{goal.title}</option>)}
+            </select>
           </label>
           <div className="reminder-form-grid">
             <label className="reminder-field">
@@ -3211,15 +3288,24 @@ function RemindersView({
               <input type="time" value={time} onChange={(event) => setTime(event.target.value)} />
             </label>
             <label className="reminder-field">
-              Повторення
-              <select value={repeat ? 'repeat' : 'once'} onChange={(event) => setRepeat(event.target.value === 'repeat')}>
-                <option value="repeat">За днями тижня</option>
+              Розклад
+              <select value={scheduleMode} onChange={(event) => setScheduleMode(event.target.value as typeof scheduleMode)}>
                 <option value="once">Один раз</option>
+                <option value="daily">Щодня</option>
+                <option value="weekdays">У будні</option>
+                <option value="custom">Обрані дні</option>
               </select>
             </label>
           </div>
-          {repeat ? (
+          {scheduleMode === 'once' ? (
+            <label className="reminder-field">
+              Дата
+              <input type="date" value={date} min={new Date().toISOString().slice(0, 10)} onChange={(event) => setDate(event.target.value)} />
+              {!date && <small className="field-error">Обери дату нагадування.</small>}
+            </label>
+          ) : (
             <>
+              {scheduleMode === 'custom' && (
               <div className="reminder-field">
                 <span>Дні тижня</span>
                 <div className="reminder-days">
@@ -3231,31 +3317,22 @@ function RemindersView({
                 </div>
                 {!days.length && <small className="field-error">Обери хоча б один день.</small>}
               </div>
+              )}
               <label className="reminder-field">
                 Завершити повторення <small>Необов’язково</small>
                 <input type="date" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} />
               </label>
             </>
-          ) : (
-            <label className="reminder-field">
-              Дата
-              <input type="date" value={date} min={new Date().toISOString().slice(0, 10)} onChange={(event) => setDate(event.target.value)} />
-              {!date && <small className="field-error">Обери дату нагадування.</small>}
-            </label>
           )}
           <div className="reminder-editor-actions">
             <button onClick={() => setEditing(null)}>Скасувати</button>
-            <Button onClick={saveCustom} disabled={!title.trim() || (repeat ? !days.length : !date)}>
+            <Button onClick={saveCustom} disabled={!title.trim() || (scheduleMode === 'once' ? !date : scheduleMode === 'custom' && !days.length)}>
               <Check /> Зберегти нагадування
             </Button>
           </div>
         </div>
       </section>
     );
-  const activeGoals = goals.filter((goal) => goal.status === 'active');
-  const selectedGoal =
-    activeGoals.find((goal) => goal.id === settings.goals.goalId) ??
-    activeGoals[0];
   const smartCards = [
     {
       key: 'gentle' as const,
@@ -3335,7 +3412,7 @@ function RemindersView({
       ) : (
         <div className="custom-reminders-surface">
           <div className="custom-reminders-head"><div><h3>Твій власний розклад</h3><p>Одноразові або повторювані нагадування з власним текстом.</p></div><Button onClick={() => openEditor()}><Plus /> Створити</Button></div>
-          {custom.length ? <div className="custom-reminder-list">{custom.map((item) => <article key={item.id}><span className="custom-reminder-time">{item.time}</span><div><strong>{item.title}</strong><small>{item.date ? new Intl.DateTimeFormat('uk-UA', { day: 'numeric', month: 'long' }).format(new Date(`${item.date}T12:00:00`)) : item.days.map((value) => dayOptions.find((day) => day.value === value)?.label).join(' · ')}</small></div><label className="reminder-switch"><input type="checkbox" checked={item.enabled} onChange={(event) => onCustomChange(custom.map((current) => current.id === item.id ? { ...current, enabled: event.target.checked } : current))} /><i /></label><button className="reminder-icon-button" onClick={() => openEditor(item)} aria-label={`Редагувати: ${item.title}`}><Edit3 /></button><button className="reminder-icon-button danger" onClick={() => onCustomChange(custom.filter((current) => current.id !== item.id))} aria-label={`Видалити: ${item.title}`}><Trash2 /></button></article>)}</div> : <div className="reminder-empty"><Bell /><strong>Ще немає власних нагадувань</strong><span>Створи перше — наприклад, для вечірньої паузи або особистого ритуалу.</span><button onClick={() => openEditor()}>Створити нагадування</button></div>}
+          {custom.length ? <div className="custom-reminder-list">{custom.map((item) => <article key={item.id}><span className="custom-reminder-time">{item.time}</span><div><strong>{item.title}</strong><small>{customScheduleLabel(item)}</small></div><label className="reminder-switch"><input type="checkbox" checked={item.enabled} onChange={(event) => onCustomChange(custom.map((current) => current.id === item.id ? { ...current, enabled: event.target.checked } : current))} /><i /></label><button className="reminder-icon-button" onClick={() => openEditor(item)} aria-label={`Редагувати: ${item.title}`}><Edit3 /></button><button className="reminder-icon-button danger" onClick={() => onCustomChange(custom.filter((current) => current.id !== item.id))} aria-label={`Видалити: ${item.title}`}><Trash2 /></button></article>)}</div> : <div className="reminder-empty"><Bell /><strong>Ще немає власних нагадувань</strong><span>Обери готовий текст або напиши власний, а потім налаштуй зручний розклад.</span><button onClick={() => openEditor()}>Створити нагадування</button></div>}
         </div>
       )}
       <section className="privacy-reminder-card"><div><LockKeyhole /><span><strong>Текст на заблокованому екрані</strong><small>Зміст самого нагадування завжди залишається в застосунку.</small></span></div><div className="privacy-options">{([{ value: 'full', label: 'Повний' }, { value: 'neutral', label: 'Нейтральний' }, { value: 'hidden', label: 'Прихований' }] as const).map((option) => <button key={option.value} className={settings.privacy === option.value ? 'active' : ''} onClick={() => onSettingsChange({ ...settings, privacy: option.value })}>{option.label}</button>)}</div></section>
