@@ -935,6 +935,36 @@ export default function Home() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   const goBack = () => nav(previousView === view ? 'today' : previousView);
+
+  useEffect(() => {
+    const nativeWindow = window as Window & {
+      metrikaHandleBack?: () => boolean;
+    };
+    nativeWindow.metrikaHandleBack = () => {
+      if (dialogOpen) {
+        setDialogOpen(false);
+        setEditingId(null);
+        return true;
+      }
+      if (goalOpen) {
+        setGoalOpen(false);
+        setGoalEditingId(null);
+        return true;
+      }
+      if (view === 'today') return false;
+      if (view === 'timer') setTimerRunning(false);
+      if (view === 'insights') {
+        setStatFocus(null);
+        setCategoryFocus(null);
+      }
+      goBack();
+      return true;
+    };
+    return () => {
+      delete nativeWindow.metrikaHandleBack;
+    };
+  }, [dialogOpen, goalOpen, previousView, view]);
+
   const openStat = (metric: StatFocus) => {
     setCategoryFocus(null);
     setStatFocus(metric);

@@ -181,11 +181,19 @@ public final class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            super.onBackPressed();
+        if (webView == null) {
+            closeApp();
+            return;
         }
+        webView.evaluateJavascript(
+                "window.metrikaHandleBack ? window.metrikaHandleBack() : false",
+                handled -> {
+                    if (!"true".equals(handled)) closeApp();
+                });
+    }
+
+    private void closeApp() {
+        super.onBackPressed();
     }
 
     @Override
