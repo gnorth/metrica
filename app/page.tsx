@@ -5,6 +5,8 @@ import {
   Activity,
   ArrowLeft,
   BarChart3,
+  Bell,
+  BellRing,
   CalendarDays,
   Check,
   ChevronLeft,
@@ -76,6 +78,7 @@ type View =
   | 'insights'
   | 'session'
   | 'taxonomy'
+  | 'reminders'
   | 'data'
   | 'timer';
 type StatFocus = 'sessions' | 'duration' | 'orgasms' | 'rating';
@@ -126,6 +129,34 @@ type Taxonomy = {
   moods: string[];
 };
 type TaxonomyGroup = keyof Taxonomy;
+type PrivacyMode = 'full' | 'neutral' | 'hidden';
+type ReminderSettings = {
+  privacy: PrivacyMode;
+  gentle: { enabled: boolean; time: string; days: number[] };
+  inactivity: { enabled: boolean; days: number; time: string };
+  highActivity: { enabled: boolean; count: number };
+  goals: { enabled: boolean; time: string; day: number };
+};
+type CustomReminder = {
+  id: string;
+  title: string;
+  time: string;
+  days: number[];
+  date?: string;
+  endsAt?: string;
+  enabled: boolean;
+};
+type NativeReminder = {
+  id: string;
+  title: string;
+  body: string;
+  publicBody: string;
+  time?: string;
+  days?: number[];
+  triggerAt?: number;
+  endsAt?: number;
+  enabled: boolean;
+};
 declare global {
   interface Document {
     modelContext?: {
@@ -133,6 +164,15 @@ declare global {
         tool: unknown,
         options?: { signal?: AbortSignal },
       ) => void | Promise<void>;
+    };
+  }
+  interface Window {
+    AndroidNotifications?: {
+      isAvailable: () => boolean;
+      hasPermission: () => boolean;
+      requestPermission: () => void;
+      sync: (payload: string) => void;
+      cancelAll: () => void;
     };
   }
 }
@@ -170,6 +210,13 @@ const baseTaxonomy: Taxonomy = {
   positions: defaultPositionOptions,
   locations: defaultLocationOptions,
   moods: defaultMoodOptions,
+};
+const defaultReminderSettings: ReminderSettings = {
+  privacy: 'neutral',
+  gentle: { enabled: false, time: '20:00', days: [5, 6] },
+  inactivity: { enabled: false, days: 6, time: '20:00' },
+  highActivity: { enabled: false, count: 3 },
+  goals: { enabled: false, time: '19:00', day: 1 },
 };
 const normalizeGoal = (
   goal: Partial<Goal> &
@@ -454,6 +501,11 @@ export default function Home() {
       tag: 'Без екранів',
     }),
   ]);
+  const [reminderSettings, setReminderSettings] = useState<ReminderSettings>(
+    defaultReminderSettings,
+  );
+  const [customReminders, setCustomReminders] = useState<CustomReminder[]>([]);
+  const [notificationPermission, setNotificationPermission] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('metrika-entries');
@@ -489,8 +541,125 @@ export default function Home() {
     const storedArchived = localStorage.getItem('metrika-taxonomy-archived');
     if (storedArchived)
       setArchivedTaxonomy({ ...emptyTaxonomy, ...JSON.parse(storedArchived) });
+    const storedReminderSettings = localStorage.getItem('metrika-reminder-settings');
+    if (storedReminderSettings)
+      setReminderSettings({
+        ...defaultReminderSettings,
+        ...JSON.parse(storedReminderSettings),
+      });
+    const storedCustomReminders = localStorage.getItem('metrika-custom-reminders');
+    if (storedCustomReminders) setCustomReminders(JSON.parse(storedCustomReminders));
+    setNotificationPermission(Boolean(window.AndroidNotifications?.hasPermission()));
     setReady(true);
   }, []);
+
+  useEffect(() => {
+    const handlePermission = () =>
+      setNotificationPermission(Boolean(window.AndroidNotifications?.hasPermission()));
+    window.addEventListener('metrika-notification-permission', handlePermission);
+    return () =>
+      window.removeEventListener('metrika-notification-permission', handlePermission);
+  }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    localStorage.setItem(
+      'metrika-reminder-settings',
+      JSON.stringify(reminderSettings),
+    );
+    localStorage.setItem(
+      'metrika-custom-reminders',
+      JSON.stringify(customReminders),
+    );
+    const bridge = window.AndroidNotifications;
+    if (!bridge?.isAvailable()) return;
+    const realEntries = entries.filter((entry) => !entry.id.startsWith('demo-'));
+    const now = Date.now();
+    const today = new Date().toDateString();
+    const todayCount = realEntries.filter(
+      (entry) => new Date(entry.createdAt).toDateString() === today,
+    ).length;
+    const latest = realEntries
+      .map((entry) => new Date(entry.createdAt).getTime())
+      .sort((a, b) => b - a)[0];
+    const privacyBody = (full: string) =>
+      reminderSettings.privacy === 'full'
+        ? full
+        : reminderSettings.privacy === 'hidden'
+          ? 'Відкрий застосунок, коли буде зручно.'
+          : 'Час зазирнути у свій приватний простір.';
+    const native: NativeReminder[] = [];
+    if (reminderSettings.gentle.enabled)
+      native.push({
+        id: 'smart-gentle',
+        title: 'Час для себе',
+        body: 'Якщо є бажання — обери комфортний темп без поспіху й очікувань.',
+        publicBody: privacyBody('М’яке нагадування про час для себе.'),
+        time: reminderSettings.gentle.time,
+        days: reminderSettings.gentle.days,
+        enabled: true,
+      });
+    if (reminderSettings.inactivity.enabled) {
+      const threshold = reminderSettings.inactivity.days * 86400000;
+      let target = new Date((latest ?? now) + threshold);
+      const [hour, minute] = reminderSettings.inactivity.time.split(':').map(Number);
+      target.setHours(hour, minute, 0, 0);
+      if (target.getTime() <= now) {
+        target = new Date(now);
+        target.setHours(hour, minute, 0, 0);
+        if (target.getTime() <= now) target.setDate(target.getDate() + 1);
+      }
+      native.push({
+        id: 'smart-inactivity',
+        title: 'Давно не було записів',
+        body: `${reminderSettings.inactivity.days} днів без сесії. Якщо хочеться зняти напругу — прислухайся до тіла. Нічого надолужувати не потрібно.`,
+        publicBody: privacyBody('Делікатне нагадування після паузи.'),
+        triggerAt: target.getTime(),
+        enabled: true,
+      });
+    }
+    if (
+      reminderSettings.highActivity.enabled &&
+      todayCount >= reminderSettings.highActivity.count
+    )
+      native.push({
+        id: `smart-rest-${today}`,
+        title: 'Час перевірити самопочуття',
+        body: `${todayCount} ${pluralUk(todayCount, 'сесія', 'сесії', 'сесій')} сьогодні. Зроби паузу, випий води й перевір, чи тілу комфортно.`,
+        publicBody: privacyBody('Час зробити паузу й перевірити самопочуття.'),
+        triggerAt: now + 20 * 60000,
+        enabled: true,
+      });
+    if (reminderSettings.goals.enabled && goals.some((goal) => goal.status === 'active'))
+      native.push({
+        id: 'smart-goals',
+        title: 'Твоя ціль чекає без тиску',
+        body: 'Переглянь прогрес і виріши, чи ціль досі відповідає твоєму наміру.',
+        publicBody: privacyBody('Нагадування переглянути особисту ціль.'),
+        time: reminderSettings.goals.time,
+        days: [reminderSettings.goals.day],
+        enabled: true,
+      });
+    customReminders.forEach((reminder) => {
+      const triggerAt = reminder.date
+        ? new Date(`${reminder.date}T${reminder.time}:00`).getTime()
+        : undefined;
+      native.push({
+        id: reminder.id,
+        title: 'Твоє нагадування',
+        body: reminder.title,
+        publicBody: privacyBody(reminder.title),
+        time: reminder.time,
+        days: reminder.date ? undefined : reminder.days,
+        triggerAt,
+        endsAt: reminder.endsAt
+          ? new Date(`${reminder.endsAt}T23:59:59`).getTime()
+          : undefined,
+        enabled: reminder.enabled,
+      });
+    });
+    bridge.sync(JSON.stringify(native));
+  }, [customReminders, entries, goals, notificationPermission, ready, reminderSettings]);
 
   useEffect(() => {
     if (window.location.protocol === 'file:' || !('serviceWorker' in navigator)) return;
@@ -862,6 +1031,8 @@ export default function Home() {
     goals?: Goal[];
     taxonomy?: Taxonomy;
     archived?: Taxonomy;
+    reminderSettings?: ReminderSettings;
+    customReminders?: CustomReminder[];
   }) => {
     setEntries(data.entries);
     localStorage.setItem('metrika-entries', JSON.stringify(data.entries));
@@ -880,6 +1051,8 @@ export default function Home() {
         JSON.stringify(data.archived),
       );
     }
+    if (data.reminderSettings) setReminderSettings(data.reminderSettings);
+    if (data.customReminders) setCustomReminders(data.customReminders);
   };
 
   const finishTimer = () => {
@@ -1282,6 +1455,15 @@ export default function Home() {
               <span>Цілі</span>
             </button>
             <button
+              aria-label="Нагадування"
+              title="Нагадування"
+              className={`nav-item ${view === 'reminders' ? 'active' : ''}`}
+              onClick={() => nav('reminders')}
+            >
+              <Bell />
+              <span>Нагад.</span>
+            </button>
+            <button
               aria-label="Параметри сесії"
               title="Параметри сесії"
               className={`nav-item ${view === 'taxonomy' ? 'active' : ''}`}
@@ -1302,10 +1484,10 @@ export default function Home() {
 
         <section className="workspace">
           <header
-            className={`topbar ${(['session', 'taxonomy', 'data'] as View[]).includes(view) ? 'secondary' : ''}`}
+            className={`topbar ${(['session', 'taxonomy', 'reminders', 'data'] as View[]).includes(view) ? 'secondary' : ''}`}
           >
             <div className="topbar-title">
-              {(['session', 'taxonomy', 'data'] as View[]).includes(view) && (
+              {(['session', 'taxonomy', 'reminders', 'data'] as View[]).includes(view) && (
                 <button
                   className="mobile-back"
                   onClick={goBack}
@@ -1329,6 +1511,8 @@ export default function Home() {
                             ? 'Сесія'
                             : view === 'taxonomy'
                               ? 'Параметри сесії'
+                              : view === 'reminders'
+                                ? 'Нагадування'
                               : view === 'data'
                                 ? 'Захист даних'
                                 : 'Статистика'}{' '}
@@ -1439,12 +1623,29 @@ export default function Home() {
               onRestore={restoreTaxonomyValue}
             />
           )}
+          {view === 'reminders' && (
+            <RemindersView
+              settings={reminderSettings}
+              custom={customReminders}
+              nativeAvailable={
+                typeof window !== 'undefined' && Boolean(window.AndroidNotifications)
+              }
+              permissionGranted={notificationPermission}
+              onRequestPermission={() =>
+                window.AndroidNotifications?.requestPermission()
+              }
+              onSettingsChange={setReminderSettings}
+              onCustomChange={setCustomReminders}
+            />
+          )}
           {view === 'data' && (
             <DataView
               entries={entries}
               goals={goals}
               taxonomy={taxonomy}
               archived={archivedTaxonomy}
+              reminderSettings={reminderSettings}
+              customReminders={customReminders}
               onRestore={restoreData}
             />
           )}
@@ -2804,22 +3005,253 @@ function HistoryView({
   );
 }
 
+function RemindersView({
+  settings,
+  custom,
+  nativeAvailable,
+  permissionGranted,
+  onRequestPermission,
+  onSettingsChange,
+  onCustomChange,
+}: {
+  settings: ReminderSettings;
+  custom: CustomReminder[];
+  nativeAvailable: boolean;
+  permissionGranted: boolean;
+  onRequestPermission: () => void;
+  onSettingsChange: (settings: ReminderSettings) => void;
+  onCustomChange: (items: CustomReminder[]) => void;
+}) {
+  const [section, setSection] = useState<'smart' | 'custom'>('smart');
+  const [editing, setEditing] = useState<CustomReminder | null>(null);
+  const [title, setTitle] = useState('');
+  const [time, setTime] = useState('20:00');
+  const [days, setDays] = useState<number[]>([1, 3, 5]);
+  const [date, setDate] = useState('');
+  const [endsAt, setEndsAt] = useState('');
+  const [repeat, setRepeat] = useState(true);
+  const dayOptions = [
+    { value: 1, label: 'Пн' },
+    { value: 2, label: 'Вт' },
+    { value: 3, label: 'Ср' },
+    { value: 4, label: 'Чт' },
+    { value: 5, label: 'Пт' },
+    { value: 6, label: 'Сб' },
+    { value: 0, label: 'Нд' },
+  ];
+  const activeSmart = [
+    settings.gentle.enabled,
+    settings.inactivity.enabled,
+    settings.highActivity.enabled,
+    settings.goals.enabled,
+  ].filter(Boolean).length;
+  const openEditor = (item?: CustomReminder) => {
+    setEditing(
+      item ?? {
+        id: crypto.randomUUID(),
+        title: '',
+        time: '20:00',
+        days: [1, 3, 5],
+        enabled: true,
+      },
+    );
+    setTitle(item?.title ?? 'Час зробити паузу й прислухатися до себе');
+    setTime(item?.time ?? '20:00');
+    setDays(item?.days ?? [1, 3, 5]);
+    setDate(item?.date ?? '');
+    setEndsAt(item?.endsAt ?? '');
+    setRepeat(!item?.date);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const saveCustom = () => {
+    if (!editing || !title.trim() || (repeat ? !days.length : !date)) return;
+    const record: CustomReminder = {
+      ...editing,
+      title: title.trim(),
+      time,
+      days: repeat ? days : [],
+      date: repeat ? undefined : date,
+      endsAt: repeat && endsAt ? endsAt : undefined,
+      enabled: true,
+    };
+    onCustomChange(
+      custom.some((item) => item.id === record.id)
+        ? custom.map((item) => (item.id === record.id ? record : item))
+        : [record, ...custom],
+    );
+    setEditing(null);
+  };
+  if (editing)
+    return (
+      <section className="reminders-page reminder-editor-page">
+        <button className="inline-page-back" onClick={() => setEditing(null)}>
+          <ArrowLeft /> Назад до нагадувань
+        </button>
+        <div className="reminders-lead">
+          <div>
+            <span className="section-kicker">Моє нагадування</span>
+            <h2>{custom.some((item) => item.id === editing.id) ? 'Редагувати' : 'Нове нагадування'}</h2>
+            <p>Твій текст і розклад зберігаються лише на цьому пристрої.</p>
+          </div>
+        </div>
+        <div className="reminder-editor-surface">
+          <label className="reminder-field">
+            Що нагадати?
+            <textarea value={title} onChange={(event) => setTitle(event.target.value)} maxLength={140} />
+            <small>{title.length}/140 · На заблокованому екрані діє вибраний режим приватності.</small>
+          </label>
+          <div className="reminder-form-grid">
+            <label className="reminder-field">
+              Час
+              <input type="time" value={time} onChange={(event) => setTime(event.target.value)} />
+            </label>
+            <label className="reminder-field">
+              Повторення
+              <select value={repeat ? 'repeat' : 'once'} onChange={(event) => setRepeat(event.target.value === 'repeat')}>
+                <option value="repeat">За днями тижня</option>
+                <option value="once">Один раз</option>
+              </select>
+            </label>
+          </div>
+          {repeat ? (
+            <>
+              <div className="reminder-field">
+                <span>Дні тижня</span>
+                <div className="reminder-days">
+                  {dayOptions.map((day) => (
+                    <button key={day.value} className={days.includes(day.value) ? 'active' : ''} onClick={() => setDays((current) => current.includes(day.value) ? current.filter((value) => value !== day.value) : [...current, day.value])}>
+                      {day.label}
+                    </button>
+                  ))}
+                </div>
+                {!days.length && <small className="field-error">Обери хоча б один день.</small>}
+              </div>
+              <label className="reminder-field">
+                Завершити повторення <small>Необов’язково</small>
+                <input type="date" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} />
+              </label>
+            </>
+          ) : (
+            <label className="reminder-field">
+              Дата
+              <input type="date" value={date} min={new Date().toISOString().slice(0, 10)} onChange={(event) => setDate(event.target.value)} />
+              {!date && <small className="field-error">Обери дату нагадування.</small>}
+            </label>
+          )}
+          <div className="reminder-editor-actions">
+            <button onClick={() => setEditing(null)}>Скасувати</button>
+            <Button onClick={saveCustom} disabled={!title.trim() || (repeat ? !days.length : !date)}>
+              <Check /> Зберегти нагадування
+            </Button>
+          </div>
+        </div>
+      </section>
+    );
+  const smartCards = [
+    {
+      key: 'gentle' as const,
+      icon: Heart,
+      title: 'Делікатний час для себе',
+      text: 'Спокійне нагадування у вибрані дні — без тиску й вимог.',
+      meta: `${settings.gentle.time} · ${settings.gentle.days.length} дн. на тиждень`,
+    },
+    {
+      key: 'inactivity' as const,
+      icon: CalendarDays,
+      title: 'Після тривалої паузи',
+      text: 'Спрацює лише коли справді давно не було жодного запису.',
+      meta: `${settings.inactivity.days} днів · о ${settings.inactivity.time}`,
+    },
+    {
+      key: 'highActivity' as const,
+      icon: Activity,
+      title: 'Перевірка самопочуття',
+      text: 'Після пікової активності нагадає зробити паузу й прислухатися до тіла.',
+      meta: `Після ${settings.highActivity.count} сесій за день`,
+    },
+    {
+      key: 'goals' as const,
+      icon: Target,
+      title: 'Незавершена ціль',
+      text: 'Раз на тиждень запропонує переглянути активну ціль, а не наздоганяти її.',
+      meta: `${dayOptions.find((day) => day.value === settings.goals.day)?.label} · ${settings.goals.time}`,
+    },
+  ];
+  const updateSmart = <K extends keyof Omit<ReminderSettings, 'privacy'>>(
+    key: K,
+    patch: Partial<ReminderSettings[K]>,
+  ) => onSettingsChange({ ...settings, [key]: { ...settings[key], ...patch } });
+  return (
+    <section className="reminders-page">
+      <div className="reminders-lead">
+        <div>
+          <span className="section-kicker">Локально й приватно</span>
+          <h2>Нагадування, які поважають твій ритм</h2>
+          <p>Розумні сигнали реагують на записи. Власні — працюють за твоїм розкладом.</p>
+        </div>
+        <div className="reminder-summary"><BellRing /><strong>{activeSmart + custom.filter((item) => item.enabled).length}</strong><span>активних</span></div>
+      </div>
+      {!nativeAvailable ? (
+        <div className="notification-access web"><Bell /><div><strong>Налаштування збережуться</strong><span>Справжні системні сповіщення працюватимуть в Android-застосунку.</span></div></div>
+      ) : !permissionGranted ? (
+        <div className="notification-access"><BellRing /><div><strong>Дозволь Metrika показувати сповіщення</strong><span>Без дозволу розклад збережеться, але Android нічого не покаже.</span></div><Button onClick={onRequestPermission}>Увімкнути</Button></div>
+      ) : (
+        <div className="notification-access granted"><Check /><div><strong>Сповіщення дозволені</strong><span>Усе планується локально на телефоні.</span></div></div>
+      )}
+      <div className="reminder-tabs" role="tablist">
+        <button className={section === 'smart' ? 'active' : ''} onClick={() => setSection('smart')}>Розумні <span>{activeSmart}</span></button>
+        <button className={section === 'custom' ? 'active' : ''} onClick={() => setSection('custom')}>Мої нагадування <span>{custom.length}</span></button>
+      </div>
+      {section === 'smart' ? (
+        <div className="smart-reminders-grid">
+          {smartCards.map((card) => {
+            const Icon = card.icon;
+            const value = settings[card.key];
+            return (
+              <article className={`smart-reminder-card ${value.enabled ? 'enabled' : ''}`} key={card.key}>
+                <div className="smart-reminder-head"><span><Icon /></span><label className="reminder-switch"><input type="checkbox" checked={value.enabled} onChange={(event) => updateSmart(card.key, { enabled: event.target.checked })} /><i /></label></div>
+                <h3>{card.title}</h3><p>{card.text}</p><strong className="reminder-meta">{card.meta}</strong>
+                {card.key === 'gentle' && <div className="smart-controls"><input aria-label="Час делікатного нагадування" type="time" value={settings.gentle.time} onChange={(event) => updateSmart('gentle', { time: event.target.value })} /><div className="mini-days">{dayOptions.map((day) => <button key={day.value} className={settings.gentle.days.includes(day.value) ? 'active' : ''} onClick={() => updateSmart('gentle', { days: settings.gentle.days.includes(day.value) ? settings.gentle.days.filter((value) => value !== day.value) : [...settings.gentle.days, day.value] })}>{day.label[0]}</button>)}</div></div>}
+                {card.key === 'inactivity' && <div className="smart-controls two"><label>Пауза<select value={settings.inactivity.days} onChange={(event) => updateSmart('inactivity', { days: Number(event.target.value) })}>{[3, 5, 6, 7, 14, 30].map((value) => <option key={value} value={value}>{value} днів</option>)}</select></label><label>Час<input type="time" value={settings.inactivity.time} onChange={(event) => updateSmart('inactivity', { time: event.target.value })} /></label></div>}
+                {card.key === 'highActivity' && <div className="smart-controls"><label>Вважати піком<select value={settings.highActivity.count} onChange={(event) => updateSmart('highActivity', { count: Number(event.target.value) })}>{[2, 3, 4, 5].map((value) => <option key={value} value={value}>{value} сесії</option>)}</select></label></div>}
+                {card.key === 'goals' && <div className="smart-controls two"><label>День<select value={settings.goals.day} onChange={(event) => updateSmart('goals', { day: Number(event.target.value) })}>{dayOptions.map((day) => <option key={day.value} value={day.value}>{day.label}</option>)}</select></label><label>Час<input type="time" value={settings.goals.time} onChange={(event) => updateSmart('goals', { time: event.target.value })} /></label></div>}
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="custom-reminders-surface">
+          <div className="custom-reminders-head"><div><h3>Твій власний розклад</h3><p>Одноразові або повторювані нагадування з власним текстом.</p></div><Button onClick={() => openEditor()}><Plus /> Створити</Button></div>
+          {custom.length ? <div className="custom-reminder-list">{custom.map((item) => <article key={item.id}><span className="custom-reminder-time">{item.time}</span><div><strong>{item.title}</strong><small>{item.date ? new Intl.DateTimeFormat('uk-UA', { day: 'numeric', month: 'long' }).format(new Date(`${item.date}T12:00:00`)) : item.days.map((value) => dayOptions.find((day) => day.value === value)?.label).join(' · ')}</small></div><label className="reminder-switch"><input type="checkbox" checked={item.enabled} onChange={(event) => onCustomChange(custom.map((current) => current.id === item.id ? { ...current, enabled: event.target.checked } : current))} /><i /></label><button className="reminder-icon-button" onClick={() => openEditor(item)} aria-label={`Редагувати: ${item.title}`}><Edit3 /></button><button className="reminder-icon-button danger" onClick={() => onCustomChange(custom.filter((current) => current.id !== item.id))} aria-label={`Видалити: ${item.title}`}><Trash2 /></button></article>)}</div> : <div className="reminder-empty"><Bell /><strong>Ще немає власних нагадувань</strong><span>Створи перше — наприклад, для вечірньої паузи або особистого ритуалу.</span><button onClick={() => openEditor()}>Створити нагадування</button></div>}
+        </div>
+      )}
+      <section className="privacy-reminder-card"><div><LockKeyhole /><span><strong>Текст на заблокованому екрані</strong><small>Зміст самого нагадування завжди залишається в застосунку.</small></span></div><div className="privacy-options">{([{ value: 'full', label: 'Повний' }, { value: 'neutral', label: 'Нейтральний' }, { value: 'hidden', label: 'Прихований' }] as const).map((option) => <button key={option.value} className={settings.privacy === option.value ? 'active' : ''} onClick={() => onSettingsChange({ ...settings, privacy: option.value })}>{option.label}</button>)}</div></section>
+    </section>
+  );
+}
+
 function DataView({
   entries,
   goals,
   taxonomy,
   archived,
+  reminderSettings,
+  customReminders,
   onRestore,
 }: {
   entries: Entry[];
   goals: Goal[];
   taxonomy: Taxonomy;
   archived: Taxonomy;
+  reminderSettings: ReminderSettings;
+  customReminders: CustomReminder[];
   onRestore: (data: {
     entries: Entry[];
     goals?: Goal[];
     taxonomy?: Taxonomy;
     archived?: Taxonomy;
+    reminderSettings?: ReminderSettings;
+    customReminders?: CustomReminder[];
   }) => void;
 }) {
   const [password, setPassword] = useState('');
@@ -2828,6 +3260,8 @@ function DataView({
     goals?: Goal[];
     taxonomy?: Taxonomy;
     archived?: Taxonomy;
+    reminderSettings?: ReminderSettings;
+    customReminders?: CustomReminder[];
   } | null>(null);
   const [status, setStatus] = useState('');
   const [pendingSource, setPendingSource] = useState<'backup' | 'csv'>('backup');
@@ -2842,6 +3276,8 @@ function DataView({
         goals,
         taxonomy,
         archived,
+        reminderSettings,
+        customReminders,
         exportedAt: new Date().toISOString(),
       },
       password,
@@ -2992,7 +3428,7 @@ function DataView({
             <span className="section-kicker">Рекомендовано</span>
             <h3>Зашифрований бекап</h3>
             <p>
-              Усі сесії, цілі та словник. Файл відкриється лише з твоїм паролем.
+              Усі сесії, цілі, нагадування та словник. Файл відкриється лише з твоїм паролем.
             </p>
           </div>
           <label>

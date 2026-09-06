@@ -28,6 +28,7 @@ public final class MainActivity extends Activity {
     private static final String APP_URL =
             "https://appassets.androidplatform.net/assets/www/index.html";
     private static final int FILE_CHOOSER_REQUEST = 1001;
+    private static final int NOTIFICATION_PERMISSION_REQUEST = 1002;
 
     private WebView webView;
     private ValueCallback<Uri[]> fileChooserCallback;
@@ -84,6 +85,9 @@ public final class MainActivity extends Activity {
         settings.setDisplayZoomControls(false);
         settings.setMediaPlaybackRequiresUserGesture(false);
         webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        webView.addJavascriptInterface(
+                new NotificationBridge(this, NOTIFICATION_PERMISSION_REQUEST),
+                "AndroidNotifications");
 
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
@@ -186,6 +190,17 @@ public final class MainActivity extends Activity {
         fileChooserCallback.onReceiveValue(
                 WebChromeClient.FileChooserParams.parseResult(resultCode, data));
         fileChooserCallback = null;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(
+            int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == NOTIFICATION_PERMISSION_REQUEST && webView != null) {
+            webView.evaluateJavascript(
+                    "window.dispatchEvent(new Event('metrika-notification-permission'))",
+                    null);
+        }
     }
 
     @Override
