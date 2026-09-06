@@ -1950,7 +1950,15 @@ export default function Home() {
                 value={goalTitle}
                 onChange={(event) => setGoalTitle(event.target.value)}
                 placeholder="Наприклад, Мій комфортний ритм"
+                required
+                aria-invalid={!goalTitle.trim()}
+                aria-describedby="goal-title-help"
               />
+              <small id="goal-title-help" className={goalTitle.trim() ? '' : 'goal-field-error'}>
+                {goalTitle.trim()
+                  ? 'Цю назву буде видно у списку цілей.'
+                  : 'Додай назву, щоб створити ціль.'}
+              </small>
             </label>
             {goalIntent !== 'screenFree' && (
               <div className="goal-filter-box">
@@ -1997,14 +2005,17 @@ export default function Home() {
             )}
             <div className="goal-dialog-actions">
               <button onClick={closeGoalForm}>Скасувати</button>
-              <Button
-                className="save-button"
-                onClick={saveGoal}
-                disabled={!goalTitle.trim()}
-              >
-                <Target />
-                {goalEditingId ? 'Зберегти зміни' : 'Створити ціль'}
-              </Button>
+              <div className="goal-submit-wrap">
+                <Button
+                  className="save-button"
+                  onClick={saveGoal}
+                  disabled={!goalTitle.trim()}
+                >
+                  <Target />
+                  {goalEditingId ? 'Зберегти зміни' : 'Створити ціль'}
+                </Button>
+                {!goalTitle.trim() && <small role="status">Спочатку введи назву цілі</small>}
+              </div>
             </div>
             </div>
           </div>
@@ -2947,7 +2958,7 @@ function DataView({
           <label className="file-drop">
             <Upload />
             <strong>Обрати файл .metrika</strong>
-            <span>Пароль береться з поля ліворуч</span>
+            <span>Використай пароль із поля вище</span>
             <input
               type="file"
               accept=".metrika,application/octet-stream"
@@ -3232,6 +3243,8 @@ function TaxonomyView({
                     />
                     <button
                       className="confirm"
+                      aria-label={`Зберегти назву «${value}»`}
+                      title="Зберегти назву"
                       onClick={() => {
                         onRename(group, value, editValue);
                         setEditing(null);
@@ -3240,7 +3253,7 @@ function TaxonomyView({
                       <Check />
                       Зберегти
                     </button>
-                    <button onClick={() => setEditing(null)}>
+                    <button onClick={() => setEditing(null)} aria-label="Скасувати редагування" title="Скасувати">
                       <X />
                     </button>
                   </div>
@@ -3268,7 +3281,7 @@ function TaxonomyView({
                           <option key={item}>{item}</option>
                         ))}
                     </select>
-                    <button onClick={() => setMerging(null)}>
+                    <button onClick={() => setMerging(null)} aria-label="Скасувати об’єднання" title="Скасувати">
                       <X />
                     </button>
                   </div>
@@ -3288,6 +3301,8 @@ function TaxonomyView({
                         <button
                           className="restore"
                           onClick={() => onRestore(group, value)}
+                          aria-label={`Відновити «${value}»`}
+                          title="Відновити"
                         >
                           <RotateCcw />
                           Відновити
@@ -3295,6 +3310,8 @@ function TaxonomyView({
                       ) : (
                         <>
                           <button
+                            aria-label={`Перейменувати «${value}»`}
+                            title="Перейменувати"
                             onClick={() => {
                               setEditing(value);
                               setEditValue(value);
@@ -3306,11 +3323,13 @@ function TaxonomyView({
                           <button
                             disabled={active.length < 2}
                             onClick={() => setMerging(value)}
+                            aria-label={`Об’єднати «${value}» з іншим значенням`}
+                            title="Об’єднати"
                           >
                             <Merge />
                             <span>Об’єднати</span>
                           </button>
-                          <button onClick={() => onArchive(group, value)}>
+                          <button onClick={() => onArchive(group, value)} aria-label={`Перемістити «${value}» в архів`} title="В архів">
                             <Archive />
                             <span>В архів</span>
                           </button>
@@ -3554,6 +3573,7 @@ function CalendarView({
                 key={day}
                 className={`${selectedDay === day ? 'selected' : ''} ${isToday ? 'today' : ''} ${sessions.length ? 'has-session' : ''}`}
                 onClick={() => setSelectedDay(day)}
+                aria-label={`${day} число${sessions.length ? `, ${sessions.length} ${sessions.length === 1 ? 'сесія' : 'сесії'}` : ', без сесій'}`}
               >
                 <span>{day}</span>
                 {sessions.length > 0 && (
@@ -3564,6 +3584,7 @@ function CalendarView({
                         className={`mark-${item.type.toLowerCase()}`}
                       />
                     ))}
+                    <b>{sessions.length}</b>
                   </div>
                 )}
               </button>
@@ -3711,11 +3732,7 @@ function GoalsView({
       <section className="goals-lead">
         <div>
           <span className="section-kicker">Наміри замість тиску</span>
-          <h2>
-            Цілі, які працюють
-            <br />
-            разом із твоїм ритмом.
-          </h2>
+          <h2>Цілі, які працюють разом із твоїм ритмом.</h2>
           <p>
             Обери бажану зміну, кількість і період. Ми самі порахуємо прогрес та
             покажемо контекст.
@@ -3995,6 +4012,7 @@ function InsightsView({
   onCategoryFocus: (category: string | null) => void;
 }) {
   const [range, setRange] = useState(30);
+  const [showMoreInsights, setShowMoreInsights] = useState(false);
   const rangeOptions = [
     { value: 7, label: 'Тиждень' },
     { value: 30, label: 'Місяць' },
@@ -4009,6 +4027,7 @@ function InsightsView({
       Date.now() - new Date(item.createdAt).getTime() <= range * 86400000,
   );
   const scoped = categoryFocus ? periodEntries.filter((item) => item.type === categoryFocus) : periodEntries;
+  const hasReliableSample = scoped.length >= 5;
   const totalMinutes = scoped.reduce(
     (sum, item) => sum + (item.duration ?? 20),
     0,
@@ -4171,10 +4190,6 @@ function InsightsView({
     };
   });
   const activeDays = heatDays.filter((item) => item.count).length;
-  const screenFreeCount = scoped.filter((item) =>
-    item.tags.includes('Без екранів'),
-  ).length;
-  const edgingCount = scoped.filter((item) => item.type === 'Edging').length;
   const best = [...scoped].sort((a, b) => (b.rating ?? 4) - (a.rating ?? 4))[0];
   const summarizeContext = (
     readValues: (entry: Entry) => string[] | undefined,
@@ -4280,25 +4295,6 @@ function InsightsView({
     .map((item) => ({ ...item, avg: item.sum / item.count }))
     .sort((a, b) => b.avg - a.avg || b.count - a.count)
     .slice(0, 3);
-  const now = new Date();
-  const thisMonth = entries.filter((item) => {
-    const d = new Date(item.createdAt);
-    return (
-      d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-    );
-  });
-  const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const prevMonth = entries.filter((item) => {
-    const d = new Date(item.createdAt);
-    return (
-      d.getMonth() === prevDate.getMonth() &&
-      d.getFullYear() === prevDate.getFullYear()
-    );
-  });
-  const monthAvg = (items: Entry[]) =>
-    items.length
-      ? items.reduce((sum, item) => sum + item.rating, 0) / items.length
-      : 0;
   const previousScoped = entries.filter((item) => {
     const age = Date.now() - new Date(item.createdAt).getTime();
     return age > range * 86400000 && age <= range * 2 * 86400000;
@@ -4656,54 +4652,37 @@ function InsightsView({
             </div>
             <span className="trend-badge">5 вимірів</span>
           </div>
-          <ChartContainer
-            config={{ value: { label: 'Баланс', color: '#ff6746' } }}
-            className="radar-chart"
-          >
-            <RadarChart data={radarData} outerRadius="68%">
-              <PolarGrid stroke="#dfe0d8" />
-              <PolarAngleAxis
-                dataKey="axis"
-                tick={{ fontSize: 9, fill: '#6f7773' }}
-              />
-              <Radar
-                dataKey="value"
-                stroke="#ff6746"
-                fill="#ff6746"
-                fillOpacity={0.2}
-                strokeWidth={2}
-              />
-            </RadarChart>
-          </ChartContainer>
-          <div className="balance-time-snapshot">
-            <div>
-              <span><Clock3 /> Добовий ритм</span>
-              <strong>
-                {scoped.length ? dominantDayPart.name : 'Ще немає даних'}
-                {scoped.length > 0 && <small> · {dominantDayPart.range}</small>}
-              </strong>
-            </div>
-            <div className="balance-hour-strip" aria-label="Активність за годинами">
-              {hourlyData.map((item) => (
-                <i
-                  key={item.hour}
-                  className={item.count ? 'active' : ''}
-                  style={{
-                    '--hour-level': Math.max(
-                      0.16,
-                      item.count / Math.max(...hourlyData.map((hour) => hour.count), 1),
-                    ),
-                  } as React.CSSProperties}
-                  title={`${item.label}: ${item.count} ${item.count === 1 ? 'сесія' : 'сесій'}`}
+          {hasReliableSample ? (
+            <ChartContainer
+              config={{ value: { label: 'Баланс', color: '#ff6746' } }}
+              className="radar-chart"
+            >
+              <RadarChart data={radarData} outerRadius="68%">
+                <PolarGrid stroke="#dfe0d8" />
+                <PolarAngleAxis
+                  dataKey="axis"
+                  tick={{ fontSize: 9, fill: '#6f7773' }}
                 />
-              ))}
+                <Radar
+                  dataKey="value"
+                  stroke="#ff6746"
+                  fill="#ff6746"
+                  fillOpacity={0.2}
+                  strokeWidth={2}
+                />
+              </RadarChart>
+            </ChartContainer>
+          ) : (
+            <div className="data-confidence-state">
+              <ShieldCheck />
+              <strong>Профіль ще формується</strong>
+              <span>
+                Є {scoped.length} із 5 потрібних записів. До цього моменту не
+                робимо сильних висновків із випадкових збігів.
+              </span>
+              <i><b style={{ width: `${Math.min(100, scoped.length * 20)}%` }} /></i>
             </div>
-            <small>
-              {scoped.length
-                ? `Пік близько ${peakHour.label} · ${dominantDayPart.share}% сесій у цей період`
-                : 'Час з’явиться після першого запису'}
-            </small>
-          </div>
+          )}
         </article>
         <article className="analytics-card rhythm-card">
           <div className="rhythm-heading">
@@ -4735,59 +4714,10 @@ function InsightsView({
               </span>
             ))}
           </div>
-          <div className="rhythm-goals">
-            <div>
-              <span>
-                <Target />
-                Усвідомлений час
-              </span>
-              <strong>
-                {Math.min(totalMinutes, 60)}
-                <small> / 60 хв</small>
-              </strong>
-              <i>
-                <b
-                  style={{
-                    width: `${Math.min(100, (totalMinutes / 60) * 100)}%`,
-                  }}
-                />
-              </i>
-            </div>
-            <div>
-              <span>
-                <Zap />
-                Практика контролю
-              </span>
-              <strong>
-                {edgingCount}
-                <small> / 2 сесії</small>
-              </strong>
-              <i>
-                <b
-                  style={{
-                    width: `${Math.min(100, (edgingCount / 2) * 100)}%`,
-                  }}
-                />
-              </i>
-            </div>
-            <div>
-              <span>
-                <ShieldCheck />
-                Без екранів
-              </span>
-              <strong>
-                {screenFreeCount}
-                <small> / 3 сесії</small>
-              </strong>
-              <i>
-                <b
-                  style={{
-                    width: `${Math.min(100, (screenFreeCount / 3) * 100)}%`,
-                  }}
-                />
-              </i>
-            </div>
-          </div>
+          <p className="rhythm-caption">
+            Заповнений день означає хоча б одну сесію. Власні межі та наміри
+            налаштовуються на екрані «Цілі».
+          </p>
         </article>
       </section>
       <section className="stats-grid-secondary">
@@ -4850,20 +4780,7 @@ function InsightsView({
             </div>
             {scoped.length > 0 && <span className="trend-badge">пік · {peakHour.label}</span>}
           </div>
-          <div className="day-cycle-range" aria-label="Період добового ритму">
-            <span>Показати за</span>
-            <div className="range-switch">
-              {rangeOptions.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => setRange(option.value)}
-                  className={range === option.value ? 'active' : ''}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          <p className="module-period">Дані за вибрані {range} днів</p>
           <div className="day-cycle-content">
             <div className="day-cycle-chart" aria-label="Розподіл активності протягом доби">
               {hourlyData.map((item) => (
@@ -4900,12 +4817,12 @@ function InsightsView({
             <span>
               <strong>
                 {scoped.length
-                  ? `${dominantDayPart.name} — зараз найчастіший період`
+                  ? `${hasReliableSample ? dominantDayPart.name : 'Ранній сигнал'} — ${hasReliableSample ? 'найчастіший період' : dominantDayPart.name.toLowerCase()}`
                   : 'Твій добовий патерн ще формується'}
               </strong>
               {scoped.length
-                ? `${dominantDayPart.value} ${dominantDayPart.value === 1 ? 'сесія' : 'сесій'}, середня оцінка ${dominantDayPart.avgRating.toFixed(1)}/5. Це тенденція за вибрані ${range} днів, а не правило.`
-                : 'Додай кілька записів у різний час — і тут з’явиться корисне порівняння.'}
+                ? `${dominantDayPart.value} ${dominantDayPart.value === 1 ? 'сесія' : 'сесій'}, середня оцінка ${dominantDayPart.avgRating.toFixed(1)}/5. ${hasReliableSample ? 'Це тенденція' : 'Поки даних замало для висновку'} за вибрані ${range} днів.`
+                : 'Після першого запису тут з’явиться розподіл за часом доби.'}
             </span>
           </div>
         </article>
@@ -4978,6 +4895,20 @@ function InsightsView({
           })}
         </div>
       </section>
+      <button
+        className="insights-disclosure"
+        onClick={() => setShowMoreInsights((value) => !value)}
+        aria-expanded={showMoreInsights}
+      >
+        <span>
+          <Sparkles />
+          <strong>{showMoreInsights ? 'Сховати деталі' : 'Показати більше деталей'}</strong>
+          <small>Золоті години, тривалість, формула та настрій</small>
+        </span>
+        <ChevronRight />
+      </button>
+      {showMoreInsights && (
+      <div className="advanced-insights">
       <section className="deep-insights-grid">
         <article className="analytics-card golden-card">
           <div className="analytics-head">
@@ -5073,7 +5004,7 @@ function InsightsView({
           </p>
         </article>
       </section>
-      <section className="formula-card">
+      <section className={`formula-card ${hasReliableSample ? '' : 'formula-card-waiting'}`}>
         <div className="formula-copy">
           <span className="section-kicker">Персональна формула</span>
           <h3>Що найчастіше пов’язане з кращими сесіями</h3>
@@ -5083,7 +5014,7 @@ function InsightsView({
           </p>
         </div>
         <div className="formula-list">
-          {formula.length ? (
+          {hasReliableSample && formula.length ? (
             formula.map((item, index) => (
               <article key={item.label}>
                 <span>{index + 1}</span>
@@ -5110,73 +5041,39 @@ function InsightsView({
               </article>
             ))
           ) : (
-            <p>Додай кілька записів із контекстом, і тут з’являться патерни.</p>
+            <div className="formula-waiting">
+              <ShieldCheck />
+              <strong>Ще рано називати це формулою</strong>
+              <span>Потрібно щонайменше 5 записів із контекстом. Зараз є {scoped.length}.</span>
+            </div>
           )}
         </div>
       </section>
-      <section className="mood-report-grid">
-        <article className="analytics-card mood-shift">
-          <div>
-            <span className="section-kicker">Настрій</span>
-            <h3>Найчастіший стан</h3>
-          </div>
-          {contextGroups[0].items[0] ? (
-            <div className="mood-shift-summary">
-              <strong>{contextGroups[0].items[0].label}</strong>
-              <span>
-                {contextGroups[0].items[0].count}{' '}
-                {contextGroups[0].items[0].count === 1
-                  ? 'сесія'
-                  : contextGroups[0].items[0].count < 5
-                    ? 'сесії'
-                    : 'сесій'}
-                <i />
-                середня оцінка {contextGroups[0].items[0].rating.toFixed(1)}/5
-              </span>
-            </div>
-          ) : (
-            <p>Обери настрій у новому записі, щоб побачити патерн.</p>
-          )}
-        </article>
-        <article className="monthly-report">
-          <div>
-            <span className="section-kicker">Місячний звіт</span>
-            <h3>
-              {new Intl.DateTimeFormat('uk-UA', {
-                month: 'long',
-                year: 'numeric',
-              }).format(now)}
-            </h3>
-            <p>Короткий підсумок без оцінок і тиску.</p>
-          </div>
-          <div className="month-stats">
+      <section className="analytics-card mood-shift mood-summary-section">
+        <div>
+          <span className="section-kicker">Настрій</span>
+          <h3>Найчастіший стан</h3>
+        </div>
+        {contextGroups[0].items[0] ? (
+          <div className="mood-shift-summary">
+            <strong>{contextGroups[0].items[0].label}</strong>
             <span>
-              <strong>{thisMonth.length}</strong>сесій
-              <em>
-                {thisMonth.length - prevMonth.length >= 0 ? '+' : ''}
-                {thisMonth.length - prevMonth.length} до минулого місяця
-              </em>
-            </span>
-            <span>
-              <strong>{monthAvg(thisMonth).toFixed(1)}</strong>середня оцінка
-              <em>
-                {monthAvg(thisMonth) - monthAvg(prevMonth) >= 0 ? '+' : ''}
-                {(monthAvg(thisMonth) - monthAvg(prevMonth)).toFixed(1)} зміна
-              </em>
-            </span>
-            <span>
-              <strong>
-                {thisMonth.reduce((sum, item) => sum + item.duration, 0)}
-              </strong>
-              хвилин<em>час для себе</em>
+              {contextGroups[0].items[0].count}{' '}
+              {contextGroups[0].items[0].count === 1
+                ? 'сесія'
+                : contextGroups[0].items[0].count < 5
+                  ? 'сесії'
+                  : 'сесій'}
+              <i />
+              середня оцінка {contextGroups[0].items[0].rating.toFixed(1)}/5
             </span>
           </div>
-          <button onClick={() => window.print()}>
-            <Download />
-            Зберегти як PDF
-          </button>
-        </article>
+        ) : (
+          <p>Обери настрій у новому записі, щоб побачити патерн.</p>
+        )}
       </section>
+      </div>
+      )}
       <p className="insight-footnote">
         <ShieldCheck /> Усі розрахунки виконуються локально. Статистика не є
         медичною рекомендацією.
