@@ -44,13 +44,6 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -1033,6 +1026,11 @@ export default function Home() {
     setGoalCategory(goal?.category ?? '');
     setGoalTag(goal?.tag ?? '');
     setGoalOpen(true);
+    window.scrollTo({ top: 0 });
+  };
+  const closeGoalForm = () => {
+    setGoalOpen(false);
+    setGoalEditingId(null);
   };
   const saveGoal = () => {
     const record: Goal = {
@@ -1057,7 +1055,7 @@ export default function Home() {
         ? goals.map((item) => (item.id === goalEditingId ? record : item))
         : [record, ...goals],
     );
-    setGoalOpen(false);
+    closeGoalForm();
   };
   const updateGoal = (id: string, patch: Partial<Goal>) =>
     persistGoals(
@@ -1148,11 +1146,11 @@ export default function Home() {
     if (!goalTargetConfig.values.includes(goalTarget)) setGoalTarget(goalTargetConfig.values[0]);
   }, [goalMetric, goalPeriod, goalRule]);
   const periodLabels: Record<GoalPeriod, string> = {
-    day: 'день',
-    week: 'тиждень',
+    day: 'дня',
+    week: 'тижня',
     fortnight: '2 тижні',
     threeWeeks: '3 тижні',
-    month: 'місяць',
+    month: 'місяця',
   };
   const goalSentence =
     goalIntent === 'time'
@@ -1194,7 +1192,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className={`app-shell ${dialogOpen ? 'entry-active' : ''}`}>
+      <div className={`app-shell ${dialogOpen || goalOpen ? 'entry-active' : ''}`}>
         <aside className="sidebar">
           <button
             className="brand-mark"
@@ -1798,20 +1796,32 @@ export default function Home() {
           </div>
         </section>
       )}
-      <Dialog open={goalOpen} onOpenChange={setGoalOpen}>
-        <DialogContent className="goal-dialog">
-          <DialogHeader>
+      {goalOpen && (
+        <section
+          className="goal-page"
+          aria-label={goalEditingId ? 'Редагування цілі' : 'Нова особиста ціль'}
+        >
+          <button
+            className="goal-page-back"
+            onClick={closeGoalForm}
+            aria-label="Повернутися до цілей"
+          >
+            <ArrowLeft />
+            <span>До цілей</span>
+          </button>
+          <header className="goal-page-header">
             <span className="dialog-kicker">
               {goalEditingId ? 'Редагування цілі' : 'Нова особиста ціль'}
             </span>
-            <DialogTitle>
+            <h2>
               {goalEditingId ? 'Налаштуй свою ціль' : 'Що ти хочеш змінити?'}
-            </DialogTitle>
-            <DialogDescription>
+            </h2>
+            <p>
               Обери найближчий намір — решту Metrika налаштує зрозуміло.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="goal-form">
+            </p>
+          </header>
+          <div className="goal-page-surface">
+            <div className="goal-form">
             {!goalEditingId && <section className="goal-presets"><div><span>Популярні шаблони</span><small>Обери готовий варіант — усе можна змінити нижче</small></div><div>{goalPresets.map(preset => <button type="button" key={preset.title} onClick={() => applyGoalPreset(preset)}><preset.icon/><span><strong>{preset.title}</strong><small>{preset.summary}</small></span><ChevronRight/></button>)}</div></section>}
             <fieldset className="goal-intent-selector">
               <legend>1. Обери свій намір</legend>
@@ -1986,15 +1996,20 @@ export default function Home() {
               </div>
             )}
             <div className="goal-dialog-actions">
-              <button onClick={() => setGoalOpen(false)}>Скасувати</button>
-              <Button onClick={saveGoal} disabled={!goalTitle.trim()}>
+              <button onClick={closeGoalForm}>Скасувати</button>
+              <Button
+                className="save-button"
+                onClick={saveGoal}
+                disabled={!goalTitle.trim()}
+              >
                 <Target />
                 {goalEditingId ? 'Зберегти зміни' : 'Створити ціль'}
               </Button>
             </div>
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </section>
+      )}
     </main>
   );
 }
