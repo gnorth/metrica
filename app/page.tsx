@@ -5120,14 +5120,23 @@ function InsightsView({
             <span className="section-kicker">Настрій</span>
             <h3>Найчастіший стан</h3>
           </div>
-          <strong>
-            {contextGroups[0].items[0]?.label ?? '—'}
-          </strong>
-          <p>
-            {contextGroups[0].items[0]
-              ? `${contextGroups[0].items[0].count} сесій · середня оцінка ${contextGroups[0].items[0].rating.toFixed(1)}/5`
-              : 'Обери настрій у новому записі, щоб побачити патерн.'}
-          </p>
+          {contextGroups[0].items[0] ? (
+            <div className="mood-shift-summary">
+              <strong>{contextGroups[0].items[0].label}</strong>
+              <span>
+                {contextGroups[0].items[0].count}{' '}
+                {contextGroups[0].items[0].count === 1
+                  ? 'сесія'
+                  : contextGroups[0].items[0].count < 5
+                    ? 'сесії'
+                    : 'сесій'}
+                <i />
+                середня оцінка {contextGroups[0].items[0].rating.toFixed(1)}/5
+              </span>
+            </div>
+          ) : (
+            <p>Обери настрій у новому записі, щоб побачити патерн.</p>
+          )}
         </article>
         <article className="monthly-report">
           <div>

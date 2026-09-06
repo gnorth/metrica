@@ -144,6 +144,10 @@ button.stat-card{position:relative;display:block;width:100%;font-family:inherit;
 @media(max-width:760px){.stats-grid-secondary{grid-template-columns:1fr}.stats-grid-secondary>.category-style-card,.stats-grid-secondary>.day-cycle-card,.stats-grid-secondary>article:last-child{grid-column:1;grid-row:auto}.rating-distribution-card{width:100%;padding:19px 20px}.rating-distribution-card .rating-bars{gap:8px;margin-top:15px}.day-cycle-content{margin-top:14px}.day-cycle-content .day-cycle-chart{min-height:104px}.day-cycle-content .day-part-grid{grid-template-columns:1fr 1fr}.day-cycle-content .day-part-grid>div{min-height:92px;padding:12px}}
 @media(max-width:390px){.day-cycle-content .day-part-grid{grid-template-columns:1fr}.day-cycle-content .day-part-grid>div{min-height:80px}}
 
+/* Text attributes are summaries, not oversized numeric KPIs. */
+.mood-shift{display:flex;min-width:0;flex-direction:column;gap:17px;padding:22px}.mood-shift h3{margin:5px 0 0!important}.mood-shift-summary{display:flex;min-width:0;align-items:center;justify-content:space-between;gap:16px;padding:15px 17px;border:1px solid #ffd8ce;border-radius:14px;background:#fff3ef}.mood-shift-summary>strong{min-width:0;color:#d94d32;font-size:21px;line-height:1.2;overflow-wrap:break-word}.mood-shift-summary>span{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex:none;color:#727d78;font-size:12px!important;white-space:nowrap}.mood-shift-summary i{width:4px;height:4px;border-radius:50%;background:#b6bdb9}.mood-shift>p{margin:0!important;color:#7f8884}
+@media(max-width:680px){.mood-shift{gap:14px;padding:19px}.mood-shift-summary{align-items:flex-start;flex-direction:column;gap:7px;padding:14px}.mood-shift-summary>strong{font-size:19px}.mood-shift-summary>span{justify-content:flex-start;flex-wrap:wrap;white-space:normal}}
+
 /* Mobile dialogs behave like real app screens and own their scroll. */
 @media(max-width:680px){
   [data-slot=dialog-overlay]{display:none}
