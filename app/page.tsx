@@ -33,6 +33,7 @@ import {
   PersonStanding,
   RotateCcw,
   Search,
+  Settings,
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
@@ -73,9 +74,9 @@ import {
 type View =
   | 'today'
   | 'history'
-  | 'calendar'
   | 'goals'
   | 'insights'
+  | 'settings'
   | 'session'
   | 'taxonomy'
   | 'reminders'
@@ -431,6 +432,7 @@ export default function Home() {
   const [previousView, setPreviousView] = useState<View>('today');
   const [statFocus, setStatFocus] = useState<StatFocus | null>(null);
   const [categoryFocus, setCategoryFocus] = useState<string | null>(null);
+  const [insightsMode, setInsightsMode] = useState<'analytics' | 'calendar'>('analytics');
   const [entries, setEntries] = useState<Entry[]>([]);
   const [ready, setReady] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -1143,6 +1145,7 @@ export default function Home() {
 
   const nav = (next: View) => {
     if (next !== view) setPreviousView(view);
+    if (next === 'insights') setInsightsMode('analytics');
     setView(next);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -1180,6 +1183,7 @@ export default function Home() {
   const openStat = (metric: StatFocus) => {
     setCategoryFocus(null);
     setStatFocus(metric);
+    setInsightsMode('analytics');
     setPreviousView(view);
     setView('insights');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1187,6 +1191,7 @@ export default function Home() {
   const openCategoryStat = (category: string) => {
     setStatFocus(null);
     setCategoryFocus(category);
+    setInsightsMode('analytics');
     setPreviousView(view);
     setView('insights');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1437,15 +1442,6 @@ export default function Home() {
               <span>Статистика</span>
             </button>
             <button
-              aria-label="Календар"
-              title="Календар"
-              className={`nav-item ${view === 'calendar' ? 'active' : ''}`}
-              onClick={() => nav('calendar')}
-            >
-              <CalendarDays />
-              <span>Календар</span>
-            </button>
-            <button
               aria-label="Цілі"
               title="Цілі"
               className={`nav-item ${view === 'goals' ? 'active' : ''}`}
@@ -1455,39 +1451,30 @@ export default function Home() {
               <span>Цілі</span>
             </button>
             <button
-              aria-label="Нагадування"
-              title="Нагадування"
-              className={`nav-item ${view === 'reminders' ? 'active' : ''}`}
-              onClick={() => nav('reminders')}
+              aria-label="Налаштування"
+              title="Налаштування"
+              className={`nav-item ${(['settings', 'taxonomy', 'reminders', 'data'] as View[]).includes(view) ? 'active' : ''}`}
+              onClick={() => nav('settings')}
             >
-              <Bell />
-              <span>Нагад.</span>
-            </button>
-            <button
-              aria-label="Параметри сесії"
-              title="Параметри сесії"
-              className={`nav-item ${view === 'taxonomy' ? 'active' : ''}`}
-              onClick={() => nav('taxonomy')}
-            >
-              <FolderCog />
-              <span>Параметри</span>
+              <Settings />
+              <span>Налашт.</span>
             </button>
           </nav>
-          <button className="privacy-card" onClick={() => nav('data')}>
-            <LockKeyhole />
+          <button className="privacy-card" onClick={() => nav('settings')}>
+            <Settings />
             <div>
-              <strong>Приватний простір</strong>
-              <span>Бекап і перенесення</span>
+              <strong>Налаштування</strong>
+              <span>Параметри, приватність</span>
             </div>
           </button>
         </aside>
 
         <section className="workspace">
           <header
-            className={`topbar ${(['session', 'taxonomy', 'reminders', 'data'] as View[]).includes(view) ? 'secondary' : ''}`}
+            className={`topbar ${(['session', 'settings', 'taxonomy', 'reminders', 'data'] as View[]).includes(view) ? 'secondary' : ''}`}
           >
             <div className="topbar-title">
-              {(['session', 'taxonomy', 'reminders', 'data'] as View[]).includes(view) && (
+              {(['session', 'settings', 'taxonomy', 'reminders', 'data'] as View[]).includes(view) && (
                 <button
                   className="mobile-back"
                   onClick={goBack}
@@ -1503,19 +1490,19 @@ export default function Home() {
                     ? 'Твій простір'
                     : view === 'history'
                       ? 'Історія'
-                      : view === 'calendar'
-                        ? 'Календар'
-                        : view === 'goals'
-                          ? 'Твої цілі'
-                          : view === 'session'
-                            ? 'Сесія'
+                      : view === 'goals'
+                        ? 'Твої цілі'
+                        : view === 'session'
+                          ? 'Сесія'
+                          : view === 'settings'
+                            ? 'Налаштування'
                             : view === 'taxonomy'
                               ? 'Параметри сесії'
                               : view === 'reminders'
                                 ? 'Нагадування'
-                              : view === 'data'
-                                ? 'Захист даних'
-                                : 'Статистика'}{' '}
+                                : view === 'data'
+                                  ? 'Захист даних'
+                                  : 'Статистика'}{' '}
                   <span>✦</span>
                 </h1>
               </div>
@@ -1528,12 +1515,12 @@ export default function Home() {
                 <Flame /> {stats.streak} {stats.streak === 1 ? 'день' : 'днів'}
               </div>
               <button
-                className={`avatar ${view === 'data' ? 'active' : ''}`}
-                aria-label="Відкрити захист даних"
-                title="Захист даних"
-                onClick={() => nav('data')}
+                className={`avatar ${(['settings', 'taxonomy', 'reminders', 'data'] as View[]).includes(view) ? 'active' : ''}`}
+                aria-label="Відкрити налаштування"
+                title="Налаштування"
+                onClick={() => nav('settings')}
               >
-                <LockKeyhole />
+                <Settings />
               </button>
             </div>
           </header>
@@ -1583,13 +1570,6 @@ export default function Home() {
               onDelete={deleteEntry}
             />
           )}
-          {view === 'calendar' && (
-            <CalendarView
-              entries={entries}
-              openLog={openNewEntry}
-              onOpen={openSession}
-            />
-          )}
           {view === 'goals' && (
             <GoalsView
               entries={entries}
@@ -1601,12 +1581,30 @@ export default function Home() {
             />
           )}
           {view === 'insights' && (
-            <InsightsView
-              entries={entries}
-              focus={statFocus}
-              onFocus={setStatFocus}
-              categoryFocus={categoryFocus}
-              onCategoryFocus={setCategoryFocus}
+            <>
+              <div className="stats-view-tabs" role="tablist" aria-label="Режим статистики">
+                <button className={insightsMode === 'analytics' ? 'active' : ''} onClick={() => setInsightsMode('analytics')}><BarChart3 /> Аналітика</button>
+                <button className={insightsMode === 'calendar' ? 'active' : ''} onClick={() => setInsightsMode('calendar')}><CalendarDays /> Календар</button>
+              </div>
+              {insightsMode === 'analytics' ? (
+                <InsightsView
+                  entries={entries}
+                  focus={statFocus}
+                  onFocus={setStatFocus}
+                  categoryFocus={categoryFocus}
+                  onCategoryFocus={setCategoryFocus}
+                />
+              ) : (
+                <CalendarView entries={entries} openLog={openNewEntry} onOpen={openSession} />
+              )}
+            </>
+          )}
+          {view === 'settings' && (
+            <SettingsView
+              taxonomy={taxonomy}
+              smartCount={[reminderSettings.gentle.enabled, reminderSettings.inactivity.enabled, reminderSettings.highActivity.enabled, reminderSettings.goals.enabled].filter(Boolean).length}
+              customCount={customReminders.filter((item) => item.enabled).length}
+              onOpen={nav}
             />
           )}
           {view === 'taxonomy' && (
@@ -3551,6 +3549,105 @@ function DataView({
           </div>
         </div>
       )}
+    </section>
+  );
+}
+
+function SettingsView({
+  taxonomy,
+  smartCount,
+  customCount,
+  onOpen,
+}: {
+  taxonomy: Taxonomy;
+  smartCount: number;
+  customCount: number;
+  onOpen: (view: View) => void;
+}) {
+  const parameterCount = (Object.keys(taxonomy) as TaxonomyGroup[]).reduce(
+    (total, group) =>
+      total + new Set([...baseTaxonomy[group], ...taxonomy[group]]).size,
+    0,
+  );
+  const reminderCount = smartCount + customCount;
+  const cards: {
+    view: View;
+    icon: LucideIcon;
+    kicker: string;
+    title: string;
+    description: string;
+    meta: string;
+  }[] = [
+    {
+      view: 'taxonomy',
+      icon: FolderCog,
+      kicker: 'Запис сесії',
+      title: 'Параметри сесії',
+      description:
+        'Категорії, настрої, теги, місця, локації та пози, які використовуються в усьому додатку.',
+      meta: `${parameterCount} значень`,
+    },
+    {
+      view: 'reminders',
+      icon: BellRing,
+      kicker: 'Твій ритм',
+      title: 'Нагадування',
+      description:
+        'Розумні підказки та власні нагадування у зручний для тебе час.',
+      meta: reminderCount
+        ? `${reminderCount} активн${reminderCount === 1 ? 'е' : 'их'}`
+        : 'Усі вимкнені',
+    },
+    {
+      view: 'data',
+      icon: LockKeyhole,
+      kicker: 'Лише на пристрої',
+      title: 'Захист даних',
+      description:
+        'Зашифрований бекап, імпорт і експорт записів без передавання даних назовні.',
+      meta: 'Приватно й офлайн',
+    },
+  ];
+
+  return (
+    <section className="settings-page">
+      <div className="settings-intro">
+        <span className="section-kicker">Усе в одному місці</span>
+        <h2>Налаштуй Metrika під себе</h2>
+        <p>
+          Керуй тим, що бачиш під час запису, коли отримуєш нагадування і як
+          зберігаються твої дані.
+        </p>
+      </div>
+      <div className="settings-grid">
+        {cards.map((card) => (
+          <button
+            className="settings-card"
+            key={card.view}
+            onClick={() => onOpen(card.view)}
+          >
+            <span className="settings-card-icon">
+              <card.icon />
+            </span>
+            <span className="settings-card-copy">
+              <small>{card.kicker}</small>
+              <strong>{card.title}</strong>
+              <span>{card.description}</span>
+            </span>
+            <span className="settings-card-footer">
+              <em>{card.meta}</em>
+              <ChevronRight />
+            </span>
+          </button>
+        ))}
+      </div>
+      <div className="settings-privacy-note">
+        <ShieldCheck />
+        <span>
+          Налаштування й особисті записи зберігаються локально на цьому
+          пристрої.
+        </span>
+      </div>
     </section>
   );
 }
