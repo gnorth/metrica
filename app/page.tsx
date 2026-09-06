@@ -4063,17 +4063,54 @@ function InsightsView({
       color: categoryColors[index % categoryColors.length],
     }))
     .filter((item) => item.value);
-  const timeData = [
-    { name: 'Ніч', value: 0 },
-    { name: 'Ранок', value: 0 },
-    { name: 'День', value: 0 },
-    { name: 'Вечір', value: 0 },
+  const dayParts = [
+    { name: 'Ніч', range: '00–06', start: 0, end: 6 },
+    { name: 'Ранок', range: '06–12', start: 6, end: 12 },
+    { name: 'День', range: '12–18', start: 12, end: 18 },
+    { name: 'Вечір', range: '18–24', start: 18, end: 24 },
   ];
-  scoped.forEach((item) => {
-    const hour = Number(item.time.split(':')[0]);
-    const index = hour < 6 ? 0 : hour < 12 ? 1 : hour < 18 ? 2 : 3;
-    timeData[index].value++;
+  const timeData = dayParts.map((part) => {
+    const matches = scoped.filter((item) => {
+      const hour = Number(item.time.split(':')[0]);
+      return hour >= part.start && hour < part.end;
+    });
+    return {
+      ...part,
+      value: matches.length,
+      share: Math.round((matches.length / Math.max(scoped.length, 1)) * 100),
+      avgRating: matches.length
+        ? matches.reduce((sum, item) => sum + (item.rating ?? 4), 0) /
+          matches.length
+        : 0,
+      avgDuration: matches.length
+        ? Math.round(
+            matches.reduce((sum, item) => sum + (item.duration ?? 20), 0) /
+              matches.length,
+          )
+        : 0,
+      orgasms: matches.reduce((sum, item) => sum + (item.orgasms ?? 0), 0),
+    };
   });
+  const hourlyData = Array.from({ length: 24 }, (_, hour) => {
+    const matches = scoped.filter(
+      (item) => Number(item.time.split(':')[0]) === hour,
+    );
+    return {
+      hour,
+      label: `${String(hour).padStart(2, '0')}:00`,
+      count: matches.length,
+      avgRating: matches.length
+        ? matches.reduce((sum, item) => sum + (item.rating ?? 4), 0) /
+          matches.length
+        : 0,
+    };
+  });
+  const peakHour = hourlyData.reduce((best, item) =>
+    item.count > best.count ? item : best,
+  );
+  const dominantDayPart = [...timeData].sort(
+    (a, b) => b.value - a.value || b.avgRating - a.avgRating,
+  )[0];
   const ratingData = [5, 4, 3, 2, 1].map((rating) => ({
     rating: `${rating} ★`,
     value: scoped.filter((item) => (item.rating ?? 4) === rating).length,
@@ -4247,6 +4284,14 @@ function InsightsView({
           : items.length
             ? items.reduce((sum, item) => sum + item.rating, 0) / items.length
             : 0;
+  const dayPartMetricValue = (metric: StatFocus, part: (typeof timeData)[number]) =>
+    metric === 'sessions'
+      ? part.value
+      : metric === 'duration'
+        ? part.avgDuration
+        : metric === 'orgasms'
+          ? part.orgasms
+          : part.avgRating;
   const focusMeta: Record<
     StatFocus,
     {
@@ -4489,6 +4534,26 @@ function InsightsView({
                   </AreaChart>
                 </ChartContainer>
               </div>
+              <div className="metric-time-context">
+                <div className="metric-time-context-head">
+                  <span><Clock3 /> За часом доби</span>
+                  <small>той самий показник у різні періоди дня</small>
+                </div>
+                <div className="metric-time-context-grid">
+                  {timeData.map((part) => {
+                    const value = dayPartMetricValue(focus, part);
+                    return (
+                      <div key={part.name} className={part.name === dominantDayPart.name ? 'active' : ''}>
+                        <span>{part.name}<small>{part.range}</small></span>
+                        <strong>
+                          {focus === 'rating' ? value.toFixed(1) : value}
+                          <small>{meta.unit}</small>
+                        </strong>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </section>
           );
         })()}
@@ -4579,6 +4644,35 @@ function InsightsView({
               />
             </RadarChart>
           </ChartContainer>
+          <div className="balance-time-snapshot">
+            <div>
+              <span><Clock3 /> Добовий ритм</span>
+              <strong>
+                {scoped.length ? dominantDayPart.name : 'Ще немає даних'}
+                {scoped.length > 0 && <small> · {dominantDayPart.range}</small>}
+              </strong>
+            </div>
+            <div className="balance-hour-strip" aria-label="Активність за годинами">
+              {hourlyData.map((item) => (
+                <i
+                  key={item.hour}
+                  className={item.count ? 'active' : ''}
+                  style={{
+                    '--hour-level': Math.max(
+                      0.16,
+                      item.count / Math.max(...hourlyData.map((hour) => hour.count), 1),
+                    ),
+                  } as React.CSSProperties}
+                  title={`${item.label}: ${item.count} ${item.count === 1 ? 'сесія' : 'сесій'}`}
+                />
+              ))}
+            </div>
+            <small>
+              {scoped.length
+                ? `Пік близько ${peakHour.label} · ${dominantDayPart.share}% сесій у цей період`
+                : 'Час з’явиться після першого запису'}
+            </small>
+          </div>
         </article>
         <article className="analytics-card rhythm-card">
           <div className="rhythm-heading">
@@ -4717,25 +4811,40 @@ function InsightsView({
             </div>
           </div>
         </article>
-        <article className="analytics-card">
+        <article className="analytics-card day-cycle-card">
           <div className="analytics-head">
             <div>
-              <span className="section-kicker">Коли</span>
-              <h3>Час доби</h3>
+              <span className="section-kicker">Добовий ритм</span>
+              <h3>Коли виникає активність</h3>
             </div>
+            {scoped.length > 0 && <span className="trend-badge">пік · {peakHour.label}</span>}
           </div>
-          <div className="h-bars">
+          <div className="day-cycle-chart" aria-label="Розподіл активності протягом доби">
+            {hourlyData.map((item) => (
+              <div key={item.hour} title={`${item.label}: ${item.count} ${item.count === 1 ? 'сесія' : 'сесій'}`}>
+                <i
+                  style={{
+                    height: `${Math.max(
+                      item.count ? 18 : 5,
+                      (item.count / Math.max(...hourlyData.map((hour) => hour.count), 1)) * 100,
+                    )}%`,
+                  }}
+                />
+                {[0, 6, 12, 18, 23].includes(item.hour) && (
+                  <small>{item.hour === 23 ? '24' : String(item.hour).padStart(2, '0')}</small>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="day-part-grid">
             {timeData.map((item) => (
-              <div key={item.name}>
-                <span>{item.name}</span>
+              <div key={item.name} className={item.name === dominantDayPart.name && item.value ? 'active' : ''}>
                 <div>
-                  <i
-                    style={{
-                      width: `${(item.value / Math.max(...timeData.map((x) => x.value), 1)) * 100}%`,
-                    }}
-                  />
+                  <span>{item.name}</span>
+                  <small>{item.range}</small>
                 </div>
-                <strong>{item.value}</strong>
+                <strong>{item.share}%</strong>
+                <small>{item.value === 1 ? '1 сесія' : `${item.value} сесій`} · {item.value ? `Ø ${item.avgDuration} хв · ${item.avgRating.toFixed(1)}/5` : 'немає даних'}</small>
               </div>
             ))}
           </div>
@@ -4743,10 +4852,13 @@ function InsightsView({
             <Sparkles />
             <span>
               <strong>
-                {timeData.sort((a, b) => b.value - a.value)[0].name} — твій
-                головний період
+                {scoped.length
+                  ? `${dominantDayPart.name} — зараз найчастіший період`
+                  : 'Твій добовий патерн ще формується'}
               </strong>
-              Саме тоді трапляється найбільше сесій.
+              {scoped.length
+                ? `${dominantDayPart.value} ${dominantDayPart.value === 1 ? 'сесія' : 'сесій'}, середня оцінка ${dominantDayPart.avgRating.toFixed(1)}/5. Це тенденція за вибрані ${range} днів, а не правило.`
+                : 'Додай кілька записів у різний час — і тут з’явиться корисне порівняння.'}
             </span>
           </div>
         </article>
