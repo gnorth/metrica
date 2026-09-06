@@ -8,6 +8,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.webkit.CookieManager;
 import android.webkit.MimeTypeMap;
@@ -18,6 +19,7 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,28 +35,35 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            getWindow().setDecorFitsSystemWindows(false);
+        }
         getWindow().setStatusBarColor(Color.rgb(245, 243, 234));
         getWindow().setNavigationBarColor(Color.rgb(245, 243, 234));
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
 
+        FrameLayout safeRoot = new FrameLayout(this);
+        safeRoot.setBackgroundColor(Color.rgb(245, 243, 234));
         webView = new WebView(this);
         webView.setBackgroundColor(Color.rgb(245, 243, 234));
-        webView.setOnApplyWindowInsetsListener((view, insets) -> {
+        FrameLayout.LayoutParams webParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT);
+        safeRoot.addView(webView, webParams);
+        safeRoot.setOnApplyWindowInsetsListener((view, insets) -> {
+            FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) webView.getLayoutParams();
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 android.graphics.Insets bars = insets.getInsets(
                         WindowInsets.Type.systemBars());
-                view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+                params.setMargins(bars.left, bars.top, bars.right, bars.bottom);
             } else {
-                view.setPadding(
-                        insets.getSystemWindowInsetLeft(),
-                        insets.getSystemWindowInsetTop(),
-                        insets.getSystemWindowInsetRight(),
-                        insets.getSystemWindowInsetBottom());
+                params.setMargins(0, 0, 0, 0);
             }
+            webView.setLayoutParams(params);
             return insets;
         });
-        setContentView(webView);
-        webView.requestApplyInsets();
+        setContentView(safeRoot);
+        safeRoot.requestApplyInsets();
         configureWebView();
 
         if (savedInstanceState == null) {
