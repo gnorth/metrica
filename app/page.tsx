@@ -493,6 +493,33 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    let focusTimer: number | undefined;
+    const revealFocusedField = () => {
+      const active = document.activeElement;
+      if (
+        active instanceof HTMLTextAreaElement ||
+        (active instanceof HTMLInputElement &&
+          ['text', 'search', 'email', 'number'].includes(active.type))
+      ) {
+        active.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    };
+    const handleFocus = (event: FocusEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) return;
+      window.clearTimeout(focusTimer);
+      focusTimer = window.setTimeout(revealFocusedField, 320);
+    };
+    document.addEventListener('focusin', handleFocus);
+    window.visualViewport?.addEventListener('resize', revealFocusedField);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener('focusin', handleFocus);
+      window.visualViewport?.removeEventListener('resize', revealFocusedField);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!timerRunning) return;
     const interval = window.setInterval(
       () => setTimerSeconds((value) => value + 1),

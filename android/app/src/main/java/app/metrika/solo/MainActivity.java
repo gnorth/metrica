@@ -55,7 +55,13 @@ public final class MainActivity extends Activity {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 android.graphics.Insets bars = insets.getInsets(
                         WindowInsets.Type.systemBars());
-                params.setMargins(bars.left, bars.top, bars.right, bars.bottom);
+                android.graphics.Insets keyboard = insets.getInsets(
+                        WindowInsets.Type.ime());
+                params.setMargins(
+                        bars.left,
+                        bars.top,
+                        bars.right,
+                        Math.max(bars.bottom, keyboard.bottom));
             } else {
                 params.setMargins(0, 0, 0, 0);
             }
