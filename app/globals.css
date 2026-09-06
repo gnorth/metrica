@@ -138,6 +138,12 @@ button.stat-card{position:relative;display:block;width:100%;font-family:inherit;
 @media(max-width:760px){.stats-grid-main .balance-card .radar-chart{height:190px}.balance-time-snapshot{margin-top:5px}.day-cycle-range{align-items:stretch;flex-direction:column;gap:8px}.day-cycle-range .range-switch{width:100%;overflow-x:auto}.day-cycle-range .range-switch button{min-width:0;flex:1;white-space:nowrap}.day-cycle-chart{height:104px;gap:2px;margin-top:18px}.day-part-grid{grid-template-columns:1fr 1fr}.metric-time-context-head{align-items:flex-start;flex-direction:column;gap:3px}.metric-time-context-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:390px){.day-part-grid,.metric-time-context-grid{grid-template-columns:1fr}.day-cycle-chart{gap:1px}.balance-time-snapshot>div:first-child{align-items:flex-start;flex-direction:column;gap:4px}}
 
+/* Secondary analytics hierarchy: two summaries, then the wide time analysis. */
+.stats-grid-secondary{grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch}.stats-grid-secondary>.category-style-card{grid-column:1;grid-row:1}.stats-grid-secondary>.day-cycle-card{grid-column:1/-1;grid-row:2}.stats-grid-secondary>article:last-child{grid-column:2;grid-row:1}.day-cycle-content{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(420px,.85fr);align-items:stretch;gap:22px;margin-top:18px}.day-cycle-content .day-cycle-chart{height:auto;min-height:180px;margin:0}.day-cycle-content .day-part-grid{grid-template-columns:1fr 1fr}.day-cycle-content .day-part-grid>div{align-content:center;min-height:84px;padding:14px}.day-cycle-card>.micro-insight{margin-top:18px}
+@media(max-width:1100px){.day-cycle-content{grid-template-columns:1fr;gap:14px}.day-cycle-content .day-cycle-chart{min-height:120px}.day-cycle-content .day-part-grid>div{min-height:78px}}
+@media(max-width:760px){.stats-grid-secondary{grid-template-columns:1fr}.stats-grid-secondary>.category-style-card,.stats-grid-secondary>.day-cycle-card,.stats-grid-secondary>article:last-child{grid-column:1;grid-row:auto}.day-cycle-content{margin-top:14px}.day-cycle-content .day-cycle-chart{min-height:104px}.day-cycle-content .day-part-grid{grid-template-columns:1fr 1fr}.day-cycle-content .day-part-grid>div{min-height:92px;padding:12px}}
+@media(max-width:390px){.day-cycle-content .day-part-grid{grid-template-columns:1fr}.day-cycle-content .day-part-grid>div{min-height:80px}}
+
 /* Mobile dialogs behave like real app screens and own their scroll. */
 @media(max-width:680px){
   [data-slot=dialog-overlay]{display:none}

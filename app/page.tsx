@@ -4864,34 +4864,36 @@ function InsightsView({
               ))}
             </div>
           </div>
-          <div className="day-cycle-chart" aria-label="Розподіл активності протягом доби">
-            {hourlyData.map((item) => (
-              <div key={item.hour} title={`${item.label}: ${item.count} ${item.count === 1 ? 'сесія' : 'сесій'}`}>
-                <i
-                  style={{
-                    height: `${Math.max(
-                      item.count ? 18 : 5,
-                      (item.count / Math.max(...hourlyData.map((hour) => hour.count), 1)) * 100,
-                    )}%`,
-                  }}
-                />
-                {[0, 6, 12, 18, 23].includes(item.hour) && (
-                  <small>{item.hour === 23 ? '24' : String(item.hour).padStart(2, '0')}</small>
-                )}
-              </div>
-            ))}
-          </div>
-          <div className="day-part-grid">
-            {timeData.map((item) => (
-              <div key={item.name} className={item.name === dominantDayPart.name && item.value ? 'active' : ''}>
-                <div>
-                  <span>{item.name}</span>
-                  <small>{item.range}</small>
+          <div className="day-cycle-content">
+            <div className="day-cycle-chart" aria-label="Розподіл активності протягом доби">
+              {hourlyData.map((item) => (
+                <div key={item.hour} title={`${item.label}: ${item.count} ${item.count === 1 ? 'сесія' : 'сесій'}`}>
+                  <i
+                    style={{
+                      height: `${Math.max(
+                        item.count ? 18 : 5,
+                        (item.count / Math.max(...hourlyData.map((hour) => hour.count), 1)) * 100,
+                      )}%`,
+                    }}
+                  />
+                  {[0, 6, 12, 18, 23].includes(item.hour) && (
+                    <small>{item.hour === 23 ? '24' : String(item.hour).padStart(2, '0')}</small>
+                  )}
                 </div>
-                <strong>{item.share}%</strong>
-                <small>{item.value === 1 ? '1 сесія' : `${item.value} сесій`} · {item.value ? `Ø ${item.avgDuration} хв · ${item.avgRating.toFixed(1)}/5` : 'немає даних'}</small>
-              </div>
-            ))}
+              ))}
+            </div>
+            <div className="day-part-grid">
+              {timeData.map((item) => (
+                <div key={item.name} className={item.name === dominantDayPart.name && item.value ? 'active' : ''}>
+                  <div>
+                    <span>{item.name}</span>
+                    <small>{item.range}</small>
+                  </div>
+                  <strong>{item.share}%</strong>
+                  <small>{item.value === 1 ? '1 сесія' : `${item.value} сесій`} · {item.value ? `Ø ${item.avgDuration} хв · ${item.avgRating.toFixed(1)}/5` : 'немає даних'}</small>
+                </div>
+              ))}
+            </div>
           </div>
           <div className="micro-insight">
             <Sparkles />
