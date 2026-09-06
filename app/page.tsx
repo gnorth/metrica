@@ -613,8 +613,8 @@ export default function Home() {
       }
       native.push({
         id: 'smart-inactivity',
-        title: 'Давно не було записів',
-        body: `${reminderSettings.inactivity.days} днів без сесії. Якщо хочеться зняти напругу — прислухайся до тіла. Нічого надолужувати не потрібно.`,
+        title: 'Пауза у записах',
+        body: `Минуло ${reminderSettings.inactivity.days} днів від останньої сесії. Якщо захочеться часу для себе — Metrika поруч. Нічого надолужувати не потрібно.`,
         publicBody: privacyBody('Делікатне нагадування після паузи.'),
         triggerAt: target.getTime(),
         enabled: true,
@@ -626,9 +626,9 @@ export default function Home() {
     )
       native.push({
         id: `smart-rest-${today}`,
-        title: 'Час перевірити самопочуття',
-        body: `${todayCount} ${pluralUk(todayCount, 'сесія', 'сесії', 'сесій')} сьогодні. Зроби паузу, випий води й перевір, чи тілу комфортно.`,
-        publicBody: privacyBody('Час зробити паузу й перевірити самопочуття.'),
+        title: 'Можна трохи перепочити',
+        body: `Сьогодні було ${todayCount} ${pluralUk(todayCount, 'сесія', 'сесії', 'сесій')}. Якщо хочеш, зроби паузу й повернися до свого ритму пізніше — без поспіху та оцінок.`,
+        publicBody: privacyBody('Невелике нагадування зробити паузу.'),
         triggerAt: now + 20 * 60000,
         enabled: true,
       });
@@ -2438,11 +2438,11 @@ function TodayView({
   const durationSpike = orderedEntries[0] && previousDurationAverage > 0 ? orderedEntries[0].duration / previousDurationAverage : 0;
   const todaySessionWord = todayCount % 10 === 1 && todayCount % 100 !== 11 ? 'сесія' : [2, 3, 4].includes(todayCount % 10) && ![12, 13, 14].includes(todayCount % 100) ? 'сесії' : 'сесій';
   const primaryCoach = todayCount >= 3
-    ? { tone: 'rest', icon: ShieldCheck, eyebrow: 'Висока активність сьогодні', title: `${todayCount} ${todaySessionWord} за день! Ого, дай тілу відпочити.`, text: 'Зроби паузу, випий води й перевір, чи немає подразнення або втоми. Наступна сесія нікуди не поспішає.', action: 'Подивитися день', onAction: openInsights, secondary: 'Вся історія', onSecondary: openInsights }
+    ? { tone: 'rest', icon: ShieldCheck, eyebrow: 'Насичений день', title: `Сьогодні вже ${todayCount} ${todaySessionWord}. Можна трохи перепочити.`, text: 'Це не оцінка і не обмеження — лише м’яка пауза. Орієнтуйся на власний комфорт і повертайся до свого ритму тоді, коли захочеться.', action: 'Подивитися день', onAction: openInsights, secondary: 'Вся історія', onSecondary: openInsights }
     : daysSince >= 6
       ? { tone: 'return', icon: Heart, eyebrow: 'Тривала пауза', title: `${daysSince} днів без жодної сесії. Хочеш зняти напругу?`, text: 'Якщо так — обери комфортний темп і не став собі цілей. Якщо бажання немає, нічого надолужувати не потрібно.', action: 'Запустити таймер', onAction: openTimer, secondary: 'Додати вручну', onSecondary: openLog }
       : currentWeekCount >= Math.max(4, previousWeekCount * 2)
-        ? { tone: 'rest', icon: Activity, eyebrow: 'Різкий ріст активності', title: `Цього тижня сесій значно більше: ${currentWeekCount} проти ${previousWeekCount}.`, text: 'Перевір самопочуття: якщо це спосіб упоратися зі стресом або нудьгою, коротка пауза чи прогулянка можуть дати більше ясності.', action: 'Подивитися динаміку', onAction: () => openStat('sessions'), secondary: 'Вся статистика', onSecondary: openInsights }
+        ? { tone: 'rest', icon: Activity, eyebrow: 'Ритм змінився', title: `Цього тижня сесій більше: ${currentWeekCount} проти ${previousWeekCount}.`, text: 'Metrika просто помітила зміну. Якщо новий ритм тобі комфортний — усе гаразд; якщо ні, можна зробити паузу й повернутися до нього пізніше.', action: 'Подивитися динаміку', onAction: () => openStat('sessions'), secondary: 'Вся статистика', onSecondary: openInsights }
         : dominantCategory && dominantCategory[1] >= 3 && dominantCategory[1] / Math.max(recentWindow.length, 1) >= .5
           ? { tone: 'pattern', icon: Zap, eyebrow: 'Домінує одна категорія', title: `${dominantCategory[0]} — твій головний сценарій?`, text: `${dominantCategory[1]} із ${recentWindow.length} останніх сесій належать до цієї категорії. Перевір її зв’язок із тривалістю, задоволенням і настроєм.`, action: 'Розібрати патерн', onAction: () => openCategoryStat(dominantCategory[0]), secondary: 'Вся статистика', onSecondary: openInsights }
           : { tone: 'steady', icon: Sparkles, eyebrow: 'Фокус на відчуттях', title: todayCount ? 'Сьогодні вже є запис — прислухайся до тіла.' : 'Обери те, після чого тобі справді краще.', text: todayCount ? 'Не потрібно покращувати цифри. Відпочинок, комфорт і відсутність подразнення — теж хороший результат.' : 'Якщо захочеться часу для себе, почни без поспіху й зверни увагу на настрій до та після.', action: todayCount ? 'Подивитися баланс' : 'Live-таймер', onAction: todayCount ? openInsights : openTimer, secondary: todayCount ? 'Відкрити історію' : 'Додати вручну', onSecondary: todayCount ? openInsights : openLog };
@@ -3163,15 +3163,15 @@ function RemindersView({
     {
       key: 'highActivity' as const,
       icon: Activity,
-      title: 'Перевірка самопочуття',
-      text: 'Після пікової активності нагадає зробити паузу й прислухатися до тіла.',
-      meta: `Після ${settings.highActivity.count} сесій за день`,
+      title: 'М’яка пауза',
+      text: 'Після насиченого дня ненав’язливо запропонує перепочити. Без оцінок, заборон і тривожних формулювань.',
+      meta: `Коли є ${settings.highActivity.count} ${pluralUk(settings.highActivity.count, 'сесія', 'сесії', 'сесій')} за день`,
     },
     {
       key: 'goals' as const,
       icon: Target,
-      title: 'Незавершена ціль',
-      text: 'Раз на тиждень запропонує переглянути активну ціль, а не наздоганяти її.',
+      title: 'Повернення до цілі',
+      text: 'Раз на тиждень запропонує спокійно переглянути прогрес і вирішити, чи ціль досі тобі підходить.',
       meta: `${dayOptions.find((day) => day.value === settings.goals.day)?.label} · ${settings.goals.time}`,
     },
   ];
@@ -3185,7 +3185,7 @@ function RemindersView({
         <div>
           <span className="section-kicker">Локально й приватно</span>
           <h2>Нагадування, які поважають твій ритм</h2>
-          <p>Розумні сигнали реагують на записи. Власні — працюють за твоїм розкладом.</p>
+          <p>Розумні нагадування враховують твій ритм. Власні — працюють за твоїм розкладом.</p>
         </div>
         <div className="reminder-summary"><BellRing /><strong>{activeSmart + custom.filter((item) => item.enabled).length}</strong><span>активних</span></div>
       </div>
