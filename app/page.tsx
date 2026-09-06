@@ -4909,7 +4909,7 @@ function InsightsView({
             </span>
           </div>
         </article>
-        <article className="analytics-card">
+        <article className="analytics-card rating-distribution-card">
           <div className="analytics-head">
             <div>
               <span className="section-kicker">Якість</span>
