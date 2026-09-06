@@ -18,6 +18,8 @@ import {
   LayoutDashboard,
   LockKeyhole,
   MoreHorizontal,
+  Monitor,
+  Moon,
   Pause,
   Play,
   Plus,
@@ -38,6 +40,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Star,
+  Sun,
   Tag,
   Target,
   Timer,
@@ -50,6 +53,17 @@ import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   ChartContainer,
   ChartTooltip,
@@ -82,6 +96,7 @@ type View =
   | 'reminders'
   | 'data'
   | 'timer';
+type ThemePreference = 'system' | 'light' | 'dark';
 type StatFocus = 'sessions' | 'duration' | 'orgasms' | 'rating';
 type Entry = {
   id: string;
@@ -91,6 +106,8 @@ type Entry = {
   duration: number;
   rating: number;
   orgasms: number;
+  edgingCycles?: number;
+  controlRating?: number;
   time: string;
   note: string;
   tags: string[];
@@ -116,10 +133,15 @@ type Goal = {
   target: number;
   period: GoalPeriod;
   rule: 'atLeast' | 'atMost';
-  status: 'active' | 'paused' | 'completed';
+  status: 'active' | 'queued' | 'paused' | 'completed';
   category?: string;
   tag?: string;
   createdAt: string;
+  kind?: 'metric' | 'naturalRhythm' | 'guidedProgram';
+  durationDays?: 7 | 14 | 30;
+  startedAt?: string;
+  finishedAt?: string;
+  reflection?: string;
 };
 type Taxonomy = {
   categories: string[];
@@ -261,15 +283,241 @@ const goalReminderFrequency = (
   if (goal.period === 'week') return 'автоматично · двічі на тиждень';
   return 'автоматично · щотижня';
 };
+const guidedProgramTitles = new Set([
+  'Усвідомлений тиждень',
+  'Тренування контролю',
+  'Фантазія без екранів',
+  'Мій стабільний ритм',
+  'Моя комфортна межа',
+  'Час для себе',
+  'Тиждень без екранів',
+  'Більше задоволення',
+]);
+
 const normalizeGoal = (
   goal: Partial<Goal> &
     Pick<Goal, 'id' | 'title' | 'metric' | 'target' | 'period'>,
-): Goal => ({
-  rule: 'atLeast',
-  status: 'active',
-  createdAt: new Date().toISOString(),
-  ...goal,
-});
+): Goal => {
+  const normalized: Goal = {
+    rule: 'atLeast',
+    status: 'active',
+    createdAt: new Date().toISOString(),
+    ...goal,
+    kind: goal.kind ?? (guidedProgramTitles.has(goal.title) ? 'guidedProgram' : 'metric'),
+  };
+  return normalized;
+};
+
+const dayPartForEntry = (entry: Entry) => {
+  const hour = Number(entry.time?.split(':')[0] ?? new Date(entry.createdAt).getHours());
+  if (hour < 6) return 'Ніч';
+  if (hour < 12) return 'Ранок';
+  if (hour < 18) return 'День';
+  return 'Вечір';
+};
+
+const naturalRhythmSnapshot = (goal: Goal, entries: Entry[], now = Date.now()) => {
+  const startedAt = new Date(goal.startedAt ?? goal.createdAt).getTime();
+  const durationDays = goal.durationDays ?? goalPeriodDays[goal.period] ?? 14;
+  const elapsedDays = Math.min(
+    durationDays,
+    Math.max(1, Math.floor((now - startedAt) / 86400000) + 1),
+  );
+  const source = entries
+    .filter((entry) => {
+      const stamp = new Date(entry.createdAt).getTime();
+      return stamp >= startedAt && stamp <= now && !entry.id.startsWith('demo-');
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const counts = source.reduce<Record<string, number>>((result, entry) => {
+    const part = dayPartForEntry(entry);
+    result[part] = (result[part] ?? 0) + 1;
+    return result;
+  }, {});
+  const dominantPart = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  const avgDuration = source.length
+    ? Math.round(source.reduce((sum, entry) => sum + entry.duration, 0) / source.length)
+    : 0;
+  const avgRating = source.length
+    ? source.reduce((sum, entry) => sum + entry.rating, 0) / source.length
+    : 0;
+  const uniqueDays = new Set(source.map((entry) => entry.createdAt.slice(0, 10))).size;
+  const complete = goal.status === 'completed' || elapsedDays >= durationDays;
+  const confidence = source.length >= 6 ? 'Достатньо даних' : source.length >= 3 ? 'Перші сигнали' : 'Збираємо картину';
+  const insight = !source.length
+    ? 'Продовжуй у звичному ритмі. Якщо буде сесія — просто додай запис.'
+    : source.length < 3
+      ? `${source.length === 1 ? 'Перший запис уже збережено' : 'Два записи вже збережено'}. Для висновків ще рано — нічого наздоганяти не потрібно.`
+      : dominantPart
+        ? `${dominantPart[0]} поки найчастіший період: ${dominantPart[1]} із ${source.length} ${pluralUk(source.length, 'запису', 'записів', 'записів')}. ${source.length < 6 ? 'Це ранній сигнал, а не остаточний висновок.' : 'Даних уже достатньо, щоб вважати це помітною тенденцією.'}`
+        : 'Записи накопичуються. Метрика покаже закономірність, щойно даних стане достатньо.';
+  return {
+    startedAt,
+    durationDays,
+    elapsedDays,
+    remainingDays: Math.max(0, durationDays - elapsedDays),
+    source,
+    uniqueDays,
+    dominantPart: dominantPart?.[0] ?? null,
+    dominantCount: dominantPart?.[1] ?? 0,
+    avgDuration,
+    avgRating,
+    confidence,
+    complete,
+    insight,
+    progress: Math.min(100, Math.round((elapsedDays / durationDays) * 100)),
+  };
+};
+
+const goalComparison = (goal: Goal, entries: Entry[], now = Date.now()) => {
+  const startedAt = new Date(goal.startedAt ?? goal.createdAt).getTime();
+  const finishedAt = goal.finishedAt ? new Date(goal.finishedAt).getTime() : now;
+  const windowDays = goal.durationDays ?? goalPeriodDays[goal.period] ?? 14;
+  const beforeStart = startedAt - windowDays * 86400000;
+  const matchesGoal = (entry: Entry) =>
+    !entry.id.startsWith('demo-') &&
+    (!goal.category || entry.type === goal.category) &&
+    (!goal.tag || entry.tags?.includes(goal.tag));
+  const summarize = (source: Entry[]) => ({
+    count: source.length,
+    avgDuration: source.length
+      ? Math.round(source.reduce((sum, entry) => sum + entry.duration, 0) / source.length)
+      : null,
+    avgRating: source.length
+      ? source.reduce((sum, entry) => sum + entry.rating, 0) / source.length
+      : null,
+    avgEdgingCycles: source.some((entry) => entry.edgingCycles !== undefined)
+      ? source.reduce((sum, entry) => sum + (entry.edgingCycles ?? 0), 0) /
+        source.filter((entry) => entry.edgingCycles !== undefined).length
+      : null,
+    avgControlRating: source.some((entry) => entry.controlRating !== undefined)
+      ? source.reduce((sum, entry) => sum + (entry.controlRating ?? 0), 0) /
+        source.filter((entry) => entry.controlRating !== undefined).length
+      : null,
+  });
+
+  return {
+    before: summarize(entries.filter((entry) => {
+      const stamp = new Date(entry.createdAt).getTime();
+      return matchesGoal(entry) && stamp >= beforeStart && stamp < startedAt;
+    })),
+    during: summarize(entries.filter((entry) => {
+      const stamp = new Date(entry.createdAt).getTime();
+      return matchesGoal(entry) && stamp >= startedAt && stamp <= finishedAt;
+    })),
+    windowDays,
+  };
+};
+
+const metricGoalGuidance = (goal: Goal, entries: Entry[], now = Date.now()) => {
+  const periodStart = now - goalPeriodDays[goal.period] * 86400000;
+  const activationStart = goal.startedAt ? new Date(goal.startedAt).getTime() : periodStart;
+  const start = Math.max(periodStart, activationStart);
+  const end = goal.status === 'active' ? now : goal.finishedAt ? new Date(goal.finishedAt).getTime() : now;
+  const source = entries
+    .filter((entry) => {
+      const stamp = new Date(entry.createdAt).getTime();
+      return (
+        stamp >= start &&
+        stamp <= end &&
+        !(goal.status === 'queued' && !goal.startedAt) &&
+        !entry.id.startsWith('demo-') &&
+        (!goal.category || entry.type === goal.category) &&
+        (!goal.tag || entry.tags?.includes(goal.tag))
+      );
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  if (goal.metric === 'rating') {
+    const best = [...source].sort((a, b) => b.rating - a.rating)[0];
+    return {
+      label: 'Дослідження якості',
+      why: 'Високу оцінку не потрібно витискати силоміць — це лише сигнал про твій досвід. Програма збере кілька чесних записів і покаже, які умови частіше супроводжують комфортніші сесії. Так ти отримаєш власну закономірність, а не універсальну пораду.',
+      nextTitle: !source.length
+        ? 'Почни з чесної початкової точки'
+        : source.length < 3
+          ? `Ще ${3 - source.length} ${pluralUk(3 - source.length, 'звичайний запис', 'звичайні записи', 'звичайних записів')}`
+          : 'Перевір одну закономірність',
+      nextText: !source.length
+        ? 'Наступного разу нічого спеціально не змінюй: запиши оцінку, настрій і контекст сесії.'
+        : source.length < 3
+          ? 'Поки лише збираємо базу. Не намагайся підвищувати оцінку заради прогресу.'
+          : best
+            ? `Найкраще оцінений запис — «${best.type}» (${best.rating}/5). Подивись, що в ньому відрізнялося, і наступного разу перевір лише один фактор.`
+            : 'Обери один фактор — час, місце, темп або відсутність екранів — і перевір його окремо.',
+      steps: ['Зібрати 3 звичайні записи', 'Знайти можливий фактор', 'Перевірити його ще раз', 'Отримати особистий висновок'],
+      stage: source.length < 3 ? 0 : source.length < 5 ? 1 : source.length < 7 ? 2 : 3,
+      source,
+    };
+  }
+
+  if (goal.category === 'Edging') {
+    return {
+      label: 'Практика контролю',
+      why: 'Кількість Edging-практик лише допомагає зібрати достатньо спостережень. Під час кожної сесії ти відзначаєш підходи до межі та наскільки легко було змінити темп. Порівняння покаже, чи став контроль зрозумілішим і комфортнішим саме для тебе.',
+      nextTitle: !source.length
+        ? 'Зафіксуй початкову точку'
+        : source.length === 1
+          ? 'Зверни увагу на зміну темпу'
+          : source.length < goal.target
+            ? 'Повтори у комфортному ритмі'
+            : 'Порівняй відчуття',
+      nextText: !source.length
+        ? 'Проведи першу практику без вимоги до тривалості. Після неї запиши комфорт, оцінку й коротку нотатку.'
+        : source.length === 1
+          ? 'У наступній практиці зверни увагу, наскільки легко сповільнитися або зробити паузу. Час не є головним показником.'
+          : source.length < goal.target
+            ? `Уже є ${source.length} ${pluralUk(source.length, 'практика', 'практики', 'практик')}. Повтори знайомий сценарій і порівняй контроль та комфорт.`
+            : 'Переглянь першу й останню практики: чи стало простіше керувати темпом і залишатися в комфорті?',
+      steps: ['Початкова практика', 'Помітити власний темп', 'Повторити без поспіху', 'Порівняти відчуття'],
+      stage: Math.min(3, source.length),
+      source,
+    };
+  }
+
+  if (goal.tag === 'Без екранів') {
+    return {
+      label: 'Особистий експеримент',
+      why: 'Екран може задавати темп і відволікати від власних відчуттів, але це працює по-різному для кожної людини. Проведи кілька сесій без відео, фото чи іншого контенту на телефоні та запиши результат. Потім Метрика порівняє ці записи зі звичайними, щоб ти побачив, який варіант комфортніший саме для тебе.',
+      nextTitle: source.length ? 'Повтори сценарій для порівняння' : 'Спробуй один запис без екранів',
+      nextText: source.length
+        ? 'Додай ще один запис із цим тегом. Метрика порівняє його з іншими сесіями за той самий період.'
+        : 'Наступного разу, якщо це буде доречно, обери тег «Без екранів» і запиши результат без очікування певної оцінки.',
+      steps: ['Перший запис', 'Повторити сценарій', 'Порівняти показники', 'Зробити висновок'],
+      stage: Math.min(3, source.length),
+      source,
+    };
+  }
+
+  const remaining = Math.max(0, goal.target - source.length);
+  return {
+    label: goal.rule === 'atMost' ? 'Комфортна межа' : 'Особистий орієнтир',
+    why: goal.rule === 'atMost'
+      ? 'Це твоя власна межа, а не оцінка поведінки. Додаток покаже, коли ти до неї наближаєшся, щоб рішення було усвідомленим, а не автоматичним. Межу можна змінити, якщо обраний ритм не підходить.'
+      : 'Орієнтир допомагає побачити реальний ритм, але не вимагає проводити сесію заради числа. Відповідні записи зараховуються автоматично. Наприкінці ти порівняєш результат із попереднім періодом і вирішиш, чи був цей темп комфортним.',
+    nextTitle: goal.rule === 'atMost'
+      ? source.length >= goal.target ? 'Ти біля обраної межі' : 'Продовжуй у своєму ритмі'
+      : remaining ? 'Наступний запис зарахується автоматично' : 'Орієнтир досягнуто',
+    nextText: goal.rule === 'atMost'
+      ? source.length >= goal.target
+        ? 'Якщо хочеш, зроби паузу. Якщо цей ритм комфортний — переглянь і зміни власну межу.'
+        : 'Нічого спеціально робити не потрібно. Метрика повідомить, коли ти наблизишся до своєї межі.'
+      : remaining
+        ? 'Не потрібно наздоганяти план. Просто додай запис, якщо сесія відбудеться природно.'
+        : 'Подивись на записи цього періоду й виріши, чи хочеш підтримувати такий ритм далі.',
+    steps: ['Обрати комфортний орієнтир', 'Спостерігати за ритмом', 'Переглянути прогрес', 'Скоригувати за потреби'],
+    stage: goal.status === 'completed'
+      ? 4
+      : !goal.startedAt && goal.status === 'queued'
+        ? 0
+        : !source.length
+          ? 1
+          : remaining
+            ? 2
+            : 3,
+    source,
+  };
+};
 
 function demoEntries(): Entry[] {
   const now = Date.now();
@@ -471,6 +719,8 @@ const downloadBlob = (content: string, name: string, type: string) => {
 
 export default function Home() {
   const [view, setView] = useState<View>('today');
+  const [themePreference, setThemePreference] =
+    useState<ThemePreference>('system');
   const [previousView, setPreviousView] = useState<View>('today');
   const [statFocus, setStatFocus] = useState<StatFocus | null>(null);
   const [categoryFocus, setCategoryFocus] = useState<string | null>(null);
@@ -486,6 +736,8 @@ export default function Home() {
   const [duration, setDuration] = useState(20);
   const [rating, setRating] = useState(4);
   const [orgasms, setOrgasms] = useState(1);
+  const [edgingCycles, setEdgingCycles] = useState(1);
+  const [controlRating, setControlRating] = useState(3);
   const [tags, setTags] = useState<string[]>([]);
   const [places, setPlaces] = useState<string[]>([]);
   const [positions, setPositions] = useState<string[]>([]);
@@ -518,8 +770,10 @@ export default function Home() {
   const [goalPeriod, setGoalPeriod] = useState<GoalPeriod>('week');
   const [goalRule, setGoalRule] = useState<'atLeast' | 'atMost'>('atLeast');
   const [goalIntent, setGoalIntent] = useState<GoalIntent>('regularity');
+  const [goalKind, setGoalKind] = useState<'metric' | 'guidedProgram'>('metric');
   const [goalCategory, setGoalCategory] = useState('');
   const [goalTag, setGoalTag] = useState('');
+  const [programDuration, setProgramDuration] = useState<7 | 14 | 30>(14);
   const [goals, setGoals] = useState<Goal[]>([
     normalizeGoal({
       id: 'goal-1',
@@ -527,6 +781,7 @@ export default function Home() {
       metric: 'minutes',
       target: 60,
       period: 'week',
+      kind: 'guidedProgram',
     }),
     normalizeGoal({
       id: 'goal-2',
@@ -534,7 +789,9 @@ export default function Home() {
       metric: 'sessions',
       target: 2,
       period: 'week',
+      status: 'queued',
       category: 'Edging',
+      kind: 'guidedProgram',
     }),
     normalizeGoal({
       id: 'goal-3',
@@ -542,7 +799,9 @@ export default function Home() {
       metric: 'sessions',
       target: 4,
       period: 'month',
+      status: 'queued',
       tag: 'Без екранів',
+      kind: 'guidedProgram',
     }),
   ]);
   const [reminderSettings, setReminderSettings] = useState<ReminderSettings>(
@@ -550,6 +809,36 @@ export default function Home() {
   );
   const [customReminders, setCustomReminders] = useState<CustomReminder[]>([]);
   const [notificationPermission, setNotificationPermission] = useState(false);
+
+  useEffect(() => {
+    const storedTheme = localStorage.getItem('metrika-theme');
+    if (
+      storedTheme === 'system' ||
+      storedTheme === 'light' ||
+      storedTheme === 'dark'
+    ) {
+      setThemePreference(storedTheme);
+    }
+  }, []);
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const applyTheme = () => {
+      const resolvedTheme =
+        themePreference === 'system'
+          ? media.matches
+            ? 'dark'
+            : 'light'
+          : themePreference;
+      document.documentElement.dataset.theme = resolvedTheme;
+      document.documentElement.classList.toggle('dark', resolvedTheme === 'dark');
+      document.documentElement.style.colorScheme = resolvedTheme;
+    };
+    applyTheme();
+    localStorage.setItem('metrika-theme', themePreference);
+    media.addEventListener('change', applyTheme);
+    return () => media.removeEventListener('change', applyTheme);
+  }, [themePreference]);
 
   useEffect(() => {
     const stored = localStorage.getItem('metrika-entries');
@@ -578,7 +867,20 @@ export default function Home() {
     }
     setShowDemoNote(localStorage.getItem('metrika-demo-note') !== 'hidden');
     const storedGoals = localStorage.getItem('metrika-goals');
-    if (storedGoals) setGoals(JSON.parse(storedGoals).map(normalizeGoal));
+    if (storedGoals) {
+      let hasActiveGoal = false;
+      const normalizedGoals = (JSON.parse(storedGoals) as Goal[]).map((storedGoal) => {
+        const goal = normalizeGoal(storedGoal);
+        if (goal.status !== 'active') return goal;
+        if (!hasActiveGoal) {
+          hasActiveGoal = true;
+          return goal;
+        }
+        return { ...goal, status: 'queued' as const };
+      });
+      setGoals(normalizedGoals);
+      localStorage.setItem('metrika-goals', JSON.stringify(normalizedGoals));
+    }
     const storedTaxonomy = localStorage.getItem('metrika-taxonomy');
     if (storedTaxonomy)
       setTaxonomy({ ...emptyTaxonomy, ...JSON.parse(storedTaxonomy) });
@@ -699,6 +1001,24 @@ export default function Home() {
       activeGoals.find((goal) => goal.id === reminderSettings.goals.goalId) ??
       activeGoals[0];
     if (reminderSettings.goals.enabled && reminderGoal) {
+      if (reminderGoal.kind === 'naturalRhythm') {
+        const snapshot = naturalRhythmSnapshot(reminderGoal, entries, now);
+        native.push({
+          id: `smart-goal-${reminderGoal.id}`,
+          title: 'Мій природний ритм',
+          body: snapshot.source.length
+            ? `День ${snapshot.elapsedDays} із ${snapshot.durationDays}. ${snapshot.insight}`
+            : `День ${snapshot.elapsedDays} із ${snapshot.durationDays}. Якщо сьогодні є що зберегти — додай запис у Метрику.`,
+          publicBody: privacyBody('Нагадування з особистої програми.'),
+          time: reminderSettings.goals.time,
+          days: goalReminderDays(
+            reminderSettings.goals.cadence,
+            reminderGoal,
+            reminderSettings.goals.day,
+          ),
+          enabled: true,
+        });
+      } else {
       const periodStart = now - goalPeriodDays[reminderGoal.period] * 86400000;
       const matchingEntries = entries.filter((entry) => {
         const stamp = new Date(entry.createdAt).getTime();
@@ -743,6 +1063,7 @@ export default function Home() {
         ),
         enabled: true,
       });
+      }
     }
     customReminders.forEach((reminder) => {
       const triggerAt = reminder.date
@@ -871,6 +1192,8 @@ export default function Home() {
       duration?: number;
       rating?: number;
       orgasms?: number;
+      edgingCycles?: number;
+      controlRating?: number;
     }) => {
       const targetId = input ? null : editingId;
       if (targetId) {
@@ -885,6 +1208,8 @@ export default function Home() {
                   duration,
                   rating,
                   orgasms,
+                  edgingCycles: type === 'Edging' ? edgingCycles : undefined,
+                  controlRating: type === 'Edging' ? controlRating : undefined,
                   note,
                   tags,
                   places,
@@ -910,6 +1235,8 @@ export default function Home() {
           duration,
           rating,
           orgasms,
+          edgingCycles: type === 'Edging' ? edgingCycles : undefined,
+          controlRating: type === 'Edging' ? controlRating : undefined,
           note,
           tags,
           places,
@@ -926,6 +1253,14 @@ export default function Home() {
         duration: input?.duration ?? duration,
         rating: input?.rating ?? rating,
         orgasms: input?.orgasms ?? orgasms,
+        edgingCycles:
+          (input?.type ?? type) === 'Edging'
+            ? (input?.edgingCycles ?? edgingCycles)
+            : undefined,
+        controlRating:
+          (input?.type ?? type) === 'Edging'
+            ? (input?.controlRating ?? controlRating)
+            : undefined,
         note: input?.note ?? note,
         tags: input?.tags ?? tags,
         places,
@@ -969,6 +1304,8 @@ export default function Home() {
       moodBefore,
       note,
       orgasms,
+      edgingCycles,
+      controlRating,
       places,
       positions,
       rating,
@@ -985,6 +1322,8 @@ export default function Home() {
     setDuration(20);
     setRating(4);
     setOrgasms(1);
+    setEdgingCycles(1);
+    setControlRating(3);
     setTags([]);
     setPlaces([]);
     setPositions([]);
@@ -1002,6 +1341,8 @@ export default function Home() {
     setDuration(entry.duration ?? 20);
     setRating(entry.rating ?? 4);
     setOrgasms(entry.orgasms ?? 1);
+    setEdgingCycles(entry.edgingCycles ?? 1);
+    setControlRating(entry.controlRating ?? 3);
     setTags(entry.tags);
     setPlaces(entry.places ?? []);
     setPositions(entry.positions ?? []);
@@ -1203,6 +1544,8 @@ export default function Home() {
           duration: { type: 'number', minimum: 1, maximum: 360 },
           rating: { type: 'number', minimum: 1, maximum: 5 },
           orgasms: { type: 'number', minimum: 0, maximum: 20 },
+          edgingCycles: { type: 'number', minimum: 0, maximum: 30 },
+          controlRating: { type: 'number', minimum: 1, maximum: 5 },
           note: { type: 'string', maxLength: 300 },
           tags: { type: 'array', items: { type: 'string' }, maxItems: 6 },
         },
@@ -1217,6 +1560,8 @@ export default function Home() {
           duration?: number;
           rating?: number;
           orgasms?: number;
+          edgingCycles?: number;
+          controlRating?: number;
           note?: string;
           tags?: string[];
         };
@@ -1309,6 +1654,40 @@ export default function Home() {
     setGoals(next);
     localStorage.setItem('metrika-goals', JSON.stringify(next));
   };
+  const startNaturalRhythmProgram = (durationDays: 7 | 14 | 30) => {
+    const startedAt = new Date().toISOString();
+    const existing = goals.find(
+      (goal) =>
+        goal.kind === 'naturalRhythm' &&
+        goal.status === 'active' &&
+        !naturalRhythmSnapshot(goal, entries).complete,
+    );
+    const record: Goal = normalizeGoal({
+      id: existing?.id ?? crypto.randomUUID(),
+      title: 'Мій природний ритм',
+      metric: 'sessions',
+      target: durationDays,
+      period: durationDays === 7 ? 'week' : durationDays === 14 ? 'fortnight' : 'month',
+      rule: 'atLeast',
+      status: 'active',
+      kind: 'naturalRhythm',
+      durationDays,
+      startedAt,
+      createdAt: existing?.createdAt ?? startedAt,
+    });
+    const nextGoals = goals.map((goal) =>
+      goal.id === existing?.id
+        ? record
+        : goal.status === 'active'
+          ? { ...goal, status: 'paused' as const, finishedAt: startedAt }
+          : goal,
+    );
+    persistGoals(existing ? nextGoals : [record, ...nextGoals]);
+    setGoalOpen(false);
+    setGoalEditingId(null);
+    setView('goals');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
   const openGoalForm = (goal?: Goal) => {
     const intent: GoalIntent =
       goal?.tag === 'Без екранів'
@@ -1329,6 +1708,7 @@ export default function Home() {
     setGoalPeriod(goal?.period ?? 'week');
     setGoalRule(goal?.rule ?? 'atLeast');
     setGoalIntent(intent);
+    setGoalKind(goal ? (goal.kind === 'guidedProgram' ? 'guidedProgram' : 'metric') : 'guidedProgram');
     setGoalCategory(goal?.category ?? '');
     setGoalTag(goal?.tag ?? '');
     setGoalAdvanced(Boolean(goal?.category || goal?.tag));
@@ -1348,15 +1728,29 @@ export default function Home() {
       target: goalTarget,
       period: goalPeriod,
       rule: goalRule,
+      kind: goalKind,
       status: goalEditingId
-        ? (goals.find((item) => item.id === goalEditingId)?.status ?? 'active')
-        : 'active',
+        ? (goals.find((item) => item.id === goalEditingId)?.status ?? 'queued')
+        : goals.some((item) => item.status === 'active')
+          ? 'queued'
+          : 'active',
       category: goalCategory || undefined,
       tag: goalTag || undefined,
       createdAt: goalEditingId
         ? (goals.find((item) => item.id === goalEditingId)?.createdAt ??
           new Date().toISOString())
         : new Date().toISOString(),
+      startedAt: goalEditingId
+        ? goals.find((item) => item.id === goalEditingId)?.startedAt
+        : goals.some((item) => item.status === 'active')
+          ? undefined
+          : new Date().toISOString(),
+      finishedAt: goalEditingId
+        ? goals.find((item) => item.id === goalEditingId)?.finishedAt
+        : undefined,
+      reflection: goalEditingId
+        ? goals.find((item) => item.id === goalEditingId)?.reflection
+        : undefined,
     };
     persistGoals(
       goalEditingId
@@ -1368,6 +1762,16 @@ export default function Home() {
   const updateGoal = (id: string, patch: Partial<Goal>) =>
     persistGoals(
       goals.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+    );
+  const activateGoal = (id: string) =>
+    persistGoals(
+      goals.map((item) =>
+        item.id === id
+          ? { ...item, status: 'active' as const, startedAt: new Date().toISOString(), finishedAt: undefined }
+          : item.status === 'active'
+            ? { ...item, status: 'paused' as const, finishedAt: new Date().toISOString() }
+            : item,
+      ),
     );
   const deleteGoal = (id: string) => {
     const index = goals.findIndex((item) => item.id === id);
@@ -1484,15 +1888,55 @@ export default function Home() {
             : goalIntent === 'screenFree'
               ? `Я хочу мати щонайменше ${goalTarget} сес. без екранів протягом ${periodLabels[goalPeriod]}.`
               : `Я хочу мати щонайменше ${goalTarget} сес. протягом ${periodLabels[goalPeriod]}.`;
-  const goalPresets: { title: string; summary: string; intent: GoalIntent; metric: GoalMetric; target: number; period: GoalPeriod; rule: 'atLeast' | 'atMost'; category?: string; tag?: string }[] = [
-    { title: 'Мій стабільний ритм', summary: '3 сесії на тиждень', intent: 'regularity', metric: 'sessions', target: 3, period: 'week', rule: 'atLeast' },
-    { title: 'Час для себе', summary: '60 хвилин на тиждень', intent: 'time', metric: 'minutes', target: 60, period: 'week', rule: 'atLeast' },
-    { title: 'Тиждень без екранів', summary: '3 сесії без екранів', intent: 'screenFree', metric: 'sessions', target: 3, period: 'week', rule: 'atLeast', tag: 'Без екранів' },
-    { title: 'Тренування контролю', summary: '4 Edging-сесії за місяць', intent: 'control', metric: 'sessions', target: 4, period: 'month', rule: 'atLeast', category: 'Edging' },
-    { title: 'Більше задоволення', summary: 'Середня оцінка 4/5', intent: 'quality', metric: 'rating', target: 4, period: 'month', rule: 'atLeast' },
+  const goalPlans: Record<GoalIntent, { label: string; why: string; steps: string[]; result: string }> = {
+    regularity: {
+      label: 'Комфортний ритм',
+      why: 'Ця програма допомагає побачити твій реальний ритм і перевірити, чи обрана частота справді вписується у життя. Не потрібно проводити сесію лише заради виконання числа — додаток просто зарахує природні записи. Наприкінці ти вирішиш, чи залишити цей орієнтир або змінити його.',
+      steps: ['Записуй лише ті сесії, які відбуваються природно.', 'Додаток сам порахує їх за вибраний період.', 'Наприкінці оціни, чи був такий ритм комфортним.'],
+      result: 'Побачиш свій реальний темп і зможеш залишити, зменшити або збільшити орієнтир.',
+    },
+    limit: {
+      label: 'Особиста межа',
+      why: 'Це не заборона і не оцінка поведінки, а власна межа, яку ти обираєш сам. Додаток покаже, коли ти до неї наближаєшся, щоб легше було помітити автоматичне рішення. Наприкінці стане зрозуміло, чи межа була комфортною та в яких ситуаціях її було складніше дотримуватися.',
+      steps: ['Обери максимальну кількість на період.', 'Чесно записуй усі сесії — нічого не приховуй від себе.', 'Коли наближаєшся до межі, перевір: це бажання, звичка чи спосіб зняти напругу?'],
+      result: 'Зрозумієш, у яких ситуаціях межу дотримувати легко, а коли потрібна пауза або інший спосіб відновитися.',
+    },
+    time: {
+      label: 'Дослідження тривалості',
+      why: 'Більше хвилин не обов’язково означає кращий досвід. Програма збере тривалість і оцінку кожної сесії, не змушуючи нічого подовжувати. Порівняння допоможе знайти діапазон часу, якого зазвичай достатньо саме тобі.',
+      steps: ['Не подовжуй сесію спеціально заради цілі.', 'Після кожної сесії записуй тривалість і задоволення.', 'Порівняй коротші та довші записи наприкінці періоду.'],
+      result: 'Побачиш, скільки часу зазвичай достатньо саме тобі та чи пов’язана тривалість із якістю досвіду.',
+    },
+    screenFree: {
+      label: 'Особистий експеримент',
+      why: 'Екран може задавати темп і відволікати від власних відчуттів, але це працює по-різному для кожної людини. Проведи кілька сесій без відео, фото чи іншого контенту на телефоні та запиши результат. Наприкінці програма порівняє їх зі звичайними сесіями й покаже, який варіант був комфортнішим саме для тебе.',
+      steps: ['Проведи одну звичайну сесію без екрана.', 'Додай тег «Без екранів» і чесну оцінку.', 'Повтори кілька разів та порівняй з іншими сесіями.'],
+      result: 'Дізнаєшся, чи змінюються без екранів твоя увага, тривалість, настрій або задоволення.',
+    },
+    quality: {
+      label: 'Дослідження якості',
+      why: 'Ціль не змушує отримувати високу оцінку — чесний результат важливіший за потрібне число. Додаток збере оцінки разом із настроєм, часом та іншим доступним контекстом. Потім ти побачиш, які умови частіше пов’язані з комфортнішим досвідом.',
+      steps: ['Зроби щонайменше три звичайні записи без спроби покращити результат.', 'Додавай оцінку, настрій і доступний контекст.', 'Перевір один повторюваний фактор: час, місце, темп або тег.'],
+      result: 'Побачиш, які умови частіше пов’язані з кращим досвідом, і зможеш перевірити їх ще раз.',
+    },
+    control: {
+      label: 'Практика контролю',
+      why: 'Edging тут не про рекорд тривалості або найбільшу кількість підходів. Після кожної практики ти відзначаєш підходи до межі та наскільки легко було сповільнитися чи зробити паузу. З часом програма покаже, чи стало простіше помічати момент і свідомо керувати темпом.',
+      steps: ['Почни без вимоги до часу чи кількості підходів.', 'Після сесії запиши підходи до межі та контроль темпу.', 'У наступних практиках перевіряй, чи легше сповільнитися або зробити паузу.'],
+      result: 'Порівняєш середню кількість підходів і контроль темпу до та під час програми, а потім запишеш власний висновок.',
+    },
+  };
+  const goalPlanPreview = goalPlans[goalIntent];
+  const goalPresets: { title: string; problem: string; summary: string; explanation: string; purpose: string; icon: LucideIcon; intent: GoalIntent; metric: GoalMetric; target: number; period: GoalPeriod; rule: 'atLeast' | 'atMost'; category?: string; tag?: string }[] = [
+    { title: 'Мій стабільний ритм', problem: 'Не розумію, який ритм для мене комфортний', summary: '3 сесії на тиждень', explanation: 'Ти не мусиш знати «правильну» частоту — її не існує для всіх. Програма збере твій реальний ритм і допоможе оцінити, чи він підходить саме тобі.', purpose: 'Побачити власну частоту без тиску та вирішити, чи хочеться щось змінювати.', icon: Flame, intent: 'regularity', metric: 'sessions', target: 3, period: 'week', rule: 'atLeast' },
+    { title: 'Моя комфортна межа', problem: 'Здається, це відбувається частіше, ніж я хочу', summary: 'Не більше 3 сесій на тиждень', explanation: 'Програма не забороняє і не засуджує. Вона допомагає помітити момент автоматичного рішення та перевірити власну межу на практиці.', purpose: 'Зрозуміти тригери, частіше робити свідомий вибір і знайти реалістичну межу.', icon: ShieldCheck, intent: 'limit', metric: 'sessions', target: 3, period: 'week', rule: 'atMost' },
+    { title: 'Час для себе', problem: 'Не розумію, скільки часу мені справді достатньо', summary: '60 хвилин на тиждень', explanation: 'Довша сесія не завжди означає кращий досвід. Програма порівняє тривалість із задоволенням і допоможе побачити твій комфортний діапазон.', purpose: 'Знайти тривалість, після якої ти частіше залишаєшся задоволеним, а не виснаженим.', icon: Clock3, intent: 'time', metric: 'minutes', target: 60, period: 'week', rule: 'atLeast' },
+    { title: 'Тиждень без екранів', problem: 'Хочу зрозуміти, чи впливає контент на мій досвід', summary: '3 сесії без екранів', explanation: 'Екран може задавати темп і забирати увагу від власних відчуттів. Кілька записів без відео чи фото дадуть тобі чесне порівняння зі звичайними сесіями.', purpose: 'Перевірити, з екраном чи без нього тобі комфортніше, уважніше й приємніше.', icon: Sparkles, intent: 'screenFree', metric: 'sessions', target: 3, period: 'week', rule: 'atLeast', tag: 'Без екранів' },
+    { title: 'Тренування контролю', problem: 'Хочу краще відчувати межу й керувати темпом', summary: '4 Edging-сесії за місяць', explanation: 'Це не змагання за час або кількість підходів. Програма допоможе помічати наближення до межі та відстежувати, чи легше стає сповільнитися або зробити паузу.', purpose: 'Порівняти підходи до межі та контроль темпу, щоб бачити реальну зміну навички.', icon: Zap, intent: 'control', metric: 'sessions', target: 4, period: 'month', rule: 'atLeast', category: 'Edging' },
+    { title: 'Більше задоволення', problem: 'Хочу зрозуміти, від чого залежить задоволення', summary: 'Середня оцінка 4/5', explanation: 'Не потрібно намагатися щоразу отримати високу оцінку. Програма збере чесні записи й покаже, які умови частіше пов’язані з комфортнішим досвідом.', purpose: 'Знайти власні закономірності у часі, настрої, місці й інших умовах.', icon: Star, intent: 'quality', metric: 'rating', target: 4, period: 'month', rule: 'atLeast' },
   ];
   const applyGoalPreset = (preset: (typeof goalPresets)[number]) => {
-    setGoalTitle(preset.title); setGoalIntent(preset.intent); setGoalMetric(preset.metric); setGoalTarget(preset.target); setGoalPeriod(preset.period); setGoalRule(preset.rule); setGoalCategory(preset.category ?? ''); setGoalTag(preset.tag ?? '');
+    setGoalKind('guidedProgram'); setGoalTitle(preset.title); setGoalIntent(preset.intent); setGoalMetric(preset.metric); setGoalTarget(preset.target); setGoalPeriod(preset.period); setGoalRule(preset.rule); setGoalCategory(preset.category ?? ''); setGoalTag(preset.tag ?? '');
   };
 
   if (view === 'timer')
@@ -1657,6 +2101,7 @@ export default function Home() {
           {view === 'today' && (
             <TodayView
               entries={entries}
+              goals={goals}
               stats={stats}
               ready={ready}
               openLog={openNewEntry}
@@ -1667,6 +2112,7 @@ export default function Home() {
               openSession={openSession}
               editEntry={editEntry}
               saved={saved}
+              openGoals={() => nav('goals')}
             />
           )}
           {view === 'history' && (
@@ -1686,7 +2132,9 @@ export default function Home() {
               openGoal={() => openGoalForm()}
               onEdit={openGoalForm}
               onUpdate={updateGoal}
+              onActivate={activateGoal}
               onDelete={deleteGoal}
+              onStartProgram={startNaturalRhythmProgram}
             />
           )}
           {view === 'insights' && (
@@ -1711,6 +2159,8 @@ export default function Home() {
           {view === 'settings' && (
             <SettingsView
               taxonomy={taxonomy}
+              themePreference={themePreference}
+              onThemeChange={setThemePreference}
               smartCount={[reminderSettings.gentle.enabled, reminderSettings.inactivity.enabled, reminderSettings.highActivity.enabled, reminderSettings.goals.enabled].filter(Boolean).length}
               customCount={customReminders.filter((item) => item.enabled).length}
               onOpen={nav}
@@ -1891,7 +2341,7 @@ export default function Home() {
             />
             <div className="entry-section-title">
               <span>2</span>
-              <div><strong>Результат</strong><small>Тривалість, кульмінації та особиста оцінка</small></div>
+              <div><strong>Результат</strong><small>Тривалість, результат та особиста оцінка</small></div>
             </div>
             <div className="core-fields">
               <div className="field-block compact-field">
@@ -1947,6 +2397,51 @@ export default function Home() {
                 </div>
               </div>
             </div>
+            {type === 'Edging' && (
+              <section className="edging-fields" aria-labelledby="edging-fields-title">
+                <div className="edging-fields-head">
+                  <div>
+                    <span>Тільки для Edging</span>
+                    <strong id="edging-fields-title">Як пройшла практика контролю?</strong>
+                  </div>
+                  <small>необов’язково</small>
+                </div>
+                <div className="edging-fields-grid">
+                  <div className="field-block compact-field">
+                    <div className="mood-label">
+                      <label>Підходи до межі</label>
+                      <strong>{edgingCycles}</strong>
+                    </div>
+                    <p>Скільки разів вдалося наблизитися до межі й повернути контроль.</p>
+                    <div className="stepper">
+                      <button aria-label="Зменшити кількість підходів" onClick={() => setEdgingCycles((value) => Math.max(0, value - 1))}>−</button>
+                      <span>{edgingCycles}</span>
+                      <button aria-label="Збільшити кількість підходів" onClick={() => setEdgingCycles((value) => Math.min(30, value + 1))}>+</button>
+                    </div>
+                  </div>
+                  <div className="field-block compact-field control-rating-field">
+                    <div className="mood-label">
+                      <label>Контроль темпу</label>
+                      <strong>{controlRating}<small>/5</small></strong>
+                    </div>
+                    <p>Наскільки легко було сповільнитися або зробити паузу.</p>
+                    <div className="control-rating-options" aria-label="Оцінка контролю темпу">
+                      {[1, 2, 3, 4, 5].map((value) => (
+                        <button
+                          key={value}
+                          aria-label={`${value} з 5`}
+                          aria-pressed={controlRating === value}
+                          className={controlRating === value ? 'selected' : ''}
+                          onClick={() => setControlRating(value)}
+                        >
+                          {value}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
             <div className="field-block rating-block">
               <div className="mood-label">
                 <label>Задоволення</label>
@@ -2167,18 +2662,116 @@ export default function Home() {
           </button>
           <header className="goal-page-header">
             <span className="dialog-kicker">
-              {goalEditingId ? 'Редагування цілі' : 'Нова особиста ціль'}
+              {goalEditingId ? 'Редагування цілі' : 'Особисті програми'}
             </span>
             <h2>
-              {goalEditingId ? 'Налаштуй свою ціль' : 'Що ти хочеш змінити?'}
+              {goalEditingId ? 'Налаштуй свою ціль' : 'З чого хочеш почати?'}
             </h2>
             <p>
-              Обери найближчий намір — решту Metrika налаштує зрозуміло.
+              Готова програма пояснить, що спостерігати, і перетворить записи
+              на зрозумілий особистий висновок.
             </p>
           </header>
           <div className="goal-page-surface">
             <div className="goal-form">
-            {!goalEditingId && <section className="goal-presets"><div><span>Популярні шаблони</span><small>Обери готовий варіант або налаштуй свій нижче</small></div><div>{goalPresets.map(preset => <button type="button" key={preset.title} onClick={() => applyGoalPreset(preset)}><strong>{preset.title}</strong><small>{preset.summary}</small></button>)}</div></section>}
+            {!goalEditingId && (
+              <>
+                <section className="program-builder-feature">
+                  <div>
+                    <span className="program-recommended">Найкращий початок</span>
+                    <h3>Мій природний ритм</h3>
+                    <p>
+                      Нічого не потрібно досягати. Просто записуй сесії як
+                      зазвичай, а Метрика покаже перші закономірності.
+                    </p>
+                    <ol className="natural-program-steps">
+                      <li><span>1</span>Живи у звичному ритмі</li>
+                      <li><span>2</span>Записуй сесії без додаткових вимог</li>
+                      <li><span>3</span>Порівняй час, частоту й власне спостереження</li>
+                    </ol>
+                  </div>
+                  <div className="program-builder-controls">
+                    <span>Період спостереження</span>
+                    <div>
+                      {([7, 14, 30] as const).map((days) => (
+                        <button
+                          type="button"
+                          key={days}
+                          className={programDuration === days ? 'selected' : ''}
+                          onClick={() => setProgramDuration(days)}
+                          aria-pressed={programDuration === days}
+                        >
+                          {days} днів
+                        </button>
+                      ))}
+                    </div>
+                    <Button type="button" onClick={() => startNaturalRhythmProgram(programDuration)}>
+                      Почати програму
+                      <ChevronRight />
+                    </Button>
+                  </div>
+                </section>
+                <div className="custom-goal-divider">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGoalKind('metric');
+                      setGoalTitle('');
+                      setGoalCategory('');
+                      setGoalTag('');
+                    }}
+                  >
+                    <Plus /> Створити власну ціль
+                  </button>
+                </div>
+                <section className="goal-presets">
+                  <div>
+                    <span>Що хочеш вирішити?</span>
+                    <small>Знайди знайому ситуацію. Кожна картка пояснює, що саме дасть програма.</small>
+                  </div>
+                  <div className="goal-preset-grid">{goalPresets.map(preset => {
+                    const PresetIcon = preset.icon;
+                    const selected = goalTitle === preset.title;
+                    return (
+                      <article className={`goal-preset-card ${selected ? 'selected' : ''}`} key={preset.title}>
+                        <div className="goal-preset-card-top">
+                          <span className="goal-preset-icon"><PresetIcon /></span>
+                          <span className="goal-preset-summary">{preset.summary}</span>
+                        </div>
+                        <span className="goal-preset-eyebrow">Підійде, якщо</span>
+                        <h3>{preset.problem}</h3>
+                        <p>{preset.explanation}</p>
+                        <div className="goal-preset-benefit">
+                          <Check />
+                          <div><strong>Чим допоможе</strong><span>{preset.purpose}</span></div>
+                        </div>
+                        <button
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => applyGoalPreset(preset)}
+                        >
+                          {selected ? <Check /> : <Target />}
+                          {selected ? 'Програму обрано' : 'Обрати програму'}
+                        </button>
+                      </article>
+                    );
+                  })}</div>
+                </section>
+              </>
+            )}
+            <section className={`goal-builder-intro ${goalKind === 'guidedProgram' ? 'program' : 'custom'}`}>
+              <span>{goalKind === 'guidedProgram' ? 'Готова програма' : 'Власна ціль'}</span>
+              <h3>{goalKind === 'guidedProgram' ? goalTitle || 'Обери готову програму вище' : 'Створи власний орієнтир'}</h3>
+              <p>
+                {goalKind === 'guidedProgram'
+                  ? goalTitle
+                    ? 'Тут уже визначено послідовність дій і спосіб оцінити результат. Тобі потрібно лише пройти маршрут у своєму темпі.'
+                    : 'Обери ситуацію, якій хочеш приділити увагу. Додаток проведе тебе крок за кроком.'
+                  : 'Для тих, хто вже знає, що саме хоче відстежувати. Ти сам задаєш показник, число та період.'}
+              </p>
+            </section>
+            {goalKind === 'metric' && (
+              <>
             <fieldset className="goal-intent-selector">
               <legend>1. Обери свій намір</legend>
               <div>
@@ -2295,10 +2888,38 @@ export default function Home() {
             <div className="goal-sentence">
               <Check />
               <div>
-                <span>Твоя ціль звучить так</span>
+                <span>{goalKind === 'guidedProgram' ? 'Твоя програма налаштована так' : 'Твоя ціль звучить так'}</span>
                 <strong>{goalSentence}</strong>
               </div>
             </div>
+              </>
+            )}
+            {goalKind === 'guidedProgram' && Boolean(goalTitle) && (
+            <div className="goal-plan-preview">
+              <header>
+                <Sparkles />
+                <div><span>План програми</span><strong>{goalPlanPreview.label}</strong></div>
+              </header>
+              <div className="goal-plan-why">
+                <span>Навіщо</span>
+                <p>{goalPlanPreview.why}</p>
+              </div>
+              <div className="goal-plan-how">
+                <span>Як виконувати</span>
+                <ol>
+                  {goalPlanPreview.steps.map((step, index) => (
+                    <li key={step}><b>{index + 1}</b><p>{step}</p></li>
+                  ))}
+                </ol>
+              </div>
+              <div className="goal-plan-result">
+                <Check />
+                <div><span>Що отримаєш наприкінці</span><p>{goalPlanPreview.result}</p></div>
+              </div>
+            </div>
+            )}
+            {goalKind === 'metric' && (
+              <>
             <label>
               Назва цілі
               <input
@@ -2378,6 +2999,9 @@ export default function Home() {
                 )}
               </section>
             )}
+              </>
+            )}
+            {(goalKind === 'metric' || Boolean(goalTitle)) && (
             <div className="goal-dialog-actions">
               <button onClick={closeGoalForm}>Скасувати</button>
               <div className="goal-submit-wrap">
@@ -2387,11 +3011,16 @@ export default function Home() {
                   disabled={!goalTitle.trim()}
                 >
                   <Target />
-                  {goalEditingId ? 'Зберегти зміни' : 'Створити ціль'}
+                  {goalEditingId
+                    ? 'Зберегти зміни'
+                    : goals.some((item) => item.status === 'active')
+                      ? goalKind === 'guidedProgram' ? 'Додати програму на потім' : 'Додати ціль на потім'
+                      : goalKind === 'guidedProgram' ? 'Почати програму' : 'Створити й активувати ціль'}
                 </Button>
                 {!goalTitle.trim() && <small role="status">Спочатку введи назву цілі</small>}
               </div>
             </div>
+            )}
             </div>
           </div>
         </section>
@@ -2486,6 +3115,7 @@ function TimerScreen({
 
 function TodayView({
   entries,
+  goals,
   stats,
   ready,
   openLog,
@@ -2496,8 +3126,10 @@ function TodayView({
   openSession,
   editEntry,
   saved,
+  openGoals,
 }: {
   entries: Entry[];
+  goals: Goal[];
   stats: {
     avg: string;
     avgDuration: number;
@@ -2515,12 +3147,14 @@ function TodayView({
   openSession: (entry: Entry) => void;
   editEntry: (entry: Entry) => void;
   saved: boolean;
+  openGoals: () => void;
 }) {
   const orderedEntries = [...entries].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   const recent = orderedEntries.slice(0, 3);
   const [coachIndex, setCoachIndex] = useState(0);
   const [coachTouchStart, setCoachTouchStart] = useState<number | null>(null);
   const [categoryRange, setCategoryRange] = useState<7 | 30>(30);
+  const [guidanceNow] = useState(() => Date.now());
   useEffect(() => localStorage.removeItem('metrika-coach-hidden'), []);
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
   const todayCount = entries.filter(entry => new Date(entry.createdAt).getTime() >= todayStart.getTime()).length;
@@ -2574,6 +3208,24 @@ function TodayView({
   const coaches = [primaryCoach, contextualCoach];
   const coach = coaches[coachIndex % coaches.length];
   const CoachIcon = coach.icon;
+  const activeProgramCandidate = goals.find(
+    (goal) => goal.kind === 'naturalRhythm' && goal.status === 'active',
+  );
+  const activeProgramCandidateSnapshot = activeProgramCandidate
+    ? naturalRhythmSnapshot(activeProgramCandidate, entries)
+    : null;
+  const activeProgram = activeProgramCandidateSnapshot?.complete
+    ? null
+    : activeProgramCandidate;
+  const activeProgramSnapshot = activeProgram
+    ? activeProgramCandidateSnapshot
+    : null;
+  const activeMetricGoal = goals.find(
+    (goal) => goal.kind !== 'naturalRhythm' && goal.status === 'active',
+  );
+  const activeMetricGuidance = activeMetricGoal
+    ? metricGoalGuidance(activeMetricGoal, entries, guidanceNow)
+    : null;
   const categoryEntries = entries.filter(
     (entry) => Date.now() - new Date(entry.createdAt).getTime() <= categoryRange * 86400000,
   );
@@ -2658,6 +3310,40 @@ function TodayView({
           </div>
         </article>
       </section>
+      {ready && activeProgram && activeProgramSnapshot && (
+        <section className="home-program-card">
+          <div className="home-program-icon"><Target /></div>
+          <div className="home-program-copy">
+            <div className="home-program-meta">
+              <span>Активна програма</span>
+              <strong>
+                День {activeProgramSnapshot.elapsedDays} із {activeProgramSnapshot.durationDays}
+              </strong>
+            </div>
+            <h3>{activeProgram.title}</h3>
+            <p>{activeProgramSnapshot.insight}</p>
+            <div className="home-program-progress" aria-label={`Пройдено ${activeProgramSnapshot.progress}% часу програми`}>
+              <span style={{ width: `${activeProgramSnapshot.progress}%` }} />
+            </div>
+          </div>
+          <button className="home-program-action" onClick={openGoals}>
+            Переглянути
+            <ChevronRight />
+          </button>
+        </section>
+      )}
+      {ready && activeMetricGoal && activeMetricGuidance && (
+        <section className="home-goal-guide" aria-live="polite">
+          <span className="home-goal-guide-icon"><Target /></span>
+          <div>
+            <span className="section-kicker">Наступний крок · {activeMetricGuidance.label}</span>
+            <h3>{activeMetricGoal.title}</h3>
+            <strong>{activeMetricGuidance.nextTitle}</strong>
+            <p>{activeMetricGuidance.nextText}</p>
+          </div>
+          <button onClick={openGoals}>Відкрити ціль <ChevronRight /></button>
+        </section>
+      )}
       {ready && <section className={`adaptive-coach ${coach.tone}`} aria-live="polite" onTouchStart={(event) => setCoachTouchStart(event.touches[0].clientX)} onTouchEnd={(event) => { if (coachTouchStart === null) return; const distance = event.changedTouches[0].clientX - coachTouchStart; if (Math.abs(distance) > 45) setCoachIndex((value) => (value + (distance < 0 ? 1 : coaches.length - 1)) % coaches.length); setCoachTouchStart(null); }}><span className="coach-icon"><CoachIcon/></span><div className="coach-copy"><div className="coach-meta"><span>{coach.eyebrow}</span><div className="coach-pagination"><button onClick={() => setCoachIndex((value) => (value + coaches.length - 1) % coaches.length)} aria-label="Попередня порада"><ChevronLeft/></button><span>Порада {coachIndex + 1}/{coaches.length}</span><button onClick={() => setCoachIndex((value) => (value + 1) % coaches.length)} aria-label="Наступна порада"><ChevronRight/></button></div></div><h3>{coach.title}</h3><p>{coach.text}</p><div className="coach-actions"><button className="coach-action" onClick={coach.onAction}>{coach.action}<ChevronRight/></button><button className="coach-secondary" onClick={coach.onSecondary}>{coach.secondary}</button></div></div></section>}
       <section className="stat-grid four" aria-label="Коротка статистика">
         <button className="stat-card" onClick={() => openStat('sessions')}>
@@ -3491,6 +4177,8 @@ function DataView({
       'Оцінка',
       'Настрій',
       'Оргазми',
+      'Підходи Edging',
+      'Контроль темпу',
       'Теги',
       'Місця',
       'Пози',
@@ -3507,6 +4195,8 @@ function DataView({
         item.rating,
         (item.moods ?? []).join('; '),
         item.orgasms,
+        item.edgingCycles ?? '',
+        item.controlRating ?? '',
         item.tags.join('; '),
         (item.places ?? []).join('; '),
         (item.positions ?? []).join('; '),
@@ -3574,6 +4264,12 @@ function DataView({
           mood: 5,
           moods: splitList(column(values, 'Настрій')),
           orgasms: Number(column(values, 'Оргазми')) || 0,
+          edgingCycles: column(values, 'Підходи Edging') === ''
+            ? undefined
+            : Number(column(values, 'Підходи Edging')),
+          controlRating: column(values, 'Контроль темпу') === ''
+            ? undefined
+            : Number(column(values, 'Контроль темпу')),
           tags: splitList(column(values, 'Теги')),
           places: splitList(column(values, 'Місця')),
           positions: splitList(column(values, 'Пози')),
@@ -3747,11 +4443,15 @@ function DataView({
 
 function SettingsView({
   taxonomy,
+  themePreference,
+  onThemeChange,
   smartCount,
   customCount,
   onOpen,
 }: {
   taxonomy: Taxonomy;
+  themePreference: ThemePreference;
+  onThemeChange: (theme: ThemePreference) => void;
   smartCount: number;
   customCount: number;
   onOpen: (view: View) => void;
@@ -3811,6 +4511,37 @@ function SettingsView({
           зберігаються твої дані.
         </p>
       </div>
+      <section className="appearance-card" aria-labelledby="appearance-title">
+        <div className="appearance-copy">
+          <span className="appearance-icon"><Moon /></span>
+          <div>
+            <span className="section-kicker">Комфорт для очей</span>
+            <h3 id="appearance-title">Вигляд додатку</h3>
+            <p>
+              Темна тема приглушує фон і контраст, щоб додатком було комфортно
+              користуватися вночі.
+            </p>
+          </div>
+        </div>
+        <div className="theme-picker" role="group" aria-label="Тема оформлення">
+          {([
+            ['system', Monitor, 'Системна'],
+            ['light', Sun, 'Світла'],
+            ['dark', Moon, 'Темна'],
+          ] as const).map(([value, Icon, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={themePreference === value}
+              className={themePreference === value ? 'active' : ''}
+              onClick={() => onThemeChange(value)}
+            >
+              <Icon />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+      </section>
       <div className="settings-grid">
         {cards.map((card) => (
           <button
@@ -4228,27 +4959,37 @@ function SessionView({
           </button>
         </div>
       </div>
-      <div className="session-metrics">
-        <article>
+      <div className="session-info-grid">
+        <article className="session-info-card session-info-metric">
           <div className="session-metric-head"><Clock3 /><span>Тривалість</span></div>
           <strong>{entry.duration} хв</strong>
         </article>
-        <article>
+        <article className="session-info-card session-info-metric">
           <div className="session-metric-head"><Star /><span>Задоволення</span></div>
           <strong>{entry.rating}/5</strong>
         </article>
-        <article className="session-metric-mood">
+        <article className="session-info-card session-info-metric session-metric-mood">
           <div className="session-metric-head"><Heart /><span>Настрій</span></div>
           <strong>{entry.moods?.[0] ?? 'Не вказано'}</strong>
         </article>
-        <article>
+        <article className="session-info-card session-info-metric">
           <div className="session-metric-head"><Zap /><span>Оргазми</span></div>
           <strong>{entry.orgasms}</strong>
         </article>
-      </div>
-      <div className="session-detail-grid">
+        {entry.type === 'Edging' && (
+          <>
+            <article className="session-info-card session-info-metric">
+              <div className="session-metric-head"><RotateCcw /><span>Підходи до межі</span></div>
+              <strong>{entry.edgingCycles ?? 'Не вказано'}</strong>
+            </article>
+            <article className="session-info-card session-info-metric">
+              <div className="session-metric-head"><Activity /><span>Контроль темпу</span></div>
+              <strong>{entry.controlRating === undefined ? 'Не вказано' : `${entry.controlRating}/5`}</strong>
+            </article>
+          </>
+        )}
         {groups.map((group) => (
-          <article key={group.label}>
+          <article className="session-info-card session-info-context" key={group.label}>
             <div className="session-detail-title">
               <group.icon />
               <span>{group.label}</span>
@@ -4455,18 +5196,27 @@ function GoalsView({
   openGoal,
   onEdit,
   onUpdate,
+  onActivate,
   onDelete,
+  onStartProgram,
 }: {
   entries: Entry[];
   goals: Goal[];
   openGoal: () => void;
   onEdit: (goal: Goal) => void;
   onUpdate: (id: string, patch: Partial<Goal>) => void;
+  onActivate: (id: string) => void;
   onDelete: (id: string) => void;
+  onStartProgram: (durationDays: 7 | 14 | 30) => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
-  const now = Date.now();
+  const [programDays, setProgramDays] = useState<7 | 14 | 30>(14);
+  const [pendingActivationId, setPendingActivationId] = useState<string | null>(null);
+  const [finishingGoalId, setFinishingGoalId] = useState<string | null>(null);
+  const [reflectionDraft, setReflectionDraft] = useState('');
+  const [librarySection, setLibrarySection] = useState<'programs' | 'goals'>('programs');
+  const [now] = useState(() => Date.now());
   const periodInfo: Record<GoalPeriod, { days: number; label: string }> = {
     day: { days: 1, label: 'день' },
     week: { days: 7, label: 'тиждень' },
@@ -4476,13 +5226,19 @@ function GoalsView({
   };
   const calculate = (goal: Goal, previous = false) => {
     const days = periodInfo[goal.period].days,
-      start = now - (previous ? days * 2 : days) * 86400000,
-      end = now - (previous ? days : 0) * 86400000;
+      periodStart = now - (previous ? days * 2 : days) * 86400000,
+      activationStart = !previous && goal.startedAt ? new Date(goal.startedAt).getTime() : periodStart,
+      start = Math.max(periodStart, activationStart),
+      periodEnd = now - (previous ? days : 0) * 86400000,
+      end = !previous && goal.status !== 'active' && goal.finishedAt
+        ? Math.min(periodEnd, new Date(goal.finishedAt).getTime())
+        : periodEnd;
     const source = entries.filter((item) => {
       const stamp = new Date(item.createdAt).getTime();
       return (
         stamp >= start &&
         stamp < end &&
+        !(goal.status === 'queued' && !goal.startedAt) &&
         (!goal.category || item.type === goal.category) &&
         (!goal.tag || item.tags.includes(goal.tag))
       );
@@ -4502,8 +5258,55 @@ function GoalsView({
     };
   };
   const selected = goals.find((item) => item.id === selectedId) ?? null;
-  const active = goals.filter((item) => item.status === 'active').length,
-    completed = goals.filter((item) => item.status === 'completed').length,
+  const activeProgram = goals.find(
+    (goal) =>
+      goal.kind === 'naturalRhythm' &&
+      goal.status === 'active' &&
+      !naturalRhythmSnapshot(goal, entries, now).complete,
+  );
+  const activeProgramSnapshot = activeProgram
+    ? naturalRhythmSnapshot(activeProgram, entries, now)
+    : null;
+  const activeMetricGoal = goals.find(
+    (goal) => goal.kind !== 'naturalRhythm' && goal.status === 'active',
+  );
+  const activeMetricGuidance = activeMetricGoal
+    ? metricGoalGuidance(activeMetricGoal, entries, now)
+    : null;
+  const activeGoalId = activeProgram?.id ?? activeMetricGoal?.id ?? null;
+  const activeGoal = activeProgram ?? activeMetricGoal ?? null;
+  const programCount = goals.filter((goal) => goal.kind === 'naturalRhythm' || goal.kind === 'guidedProgram').length;
+  const customGoalCount = goals.filter((goal) => goal.kind !== 'naturalRhythm' && goal.kind !== 'guidedProgram').length;
+  const pendingActivationGoal = goals.find((goal) => goal.id === pendingActivationId) ?? null;
+  const pendingIsProgram = pendingActivationGoal?.kind === 'naturalRhythm' || pendingActivationGoal?.kind === 'guidedProgram';
+  const requestActivation = (goal: Goal) => {
+    if (activeGoalId && activeGoalId !== goal.id) {
+      setPendingActivationId(goal.id);
+      return;
+    }
+    onActivate(goal.id);
+    setSelectedId(goal.id);
+  };
+  const beginFinish = (goal: Goal) => {
+    setSelectedId(goal.id);
+    setReflectionDraft(goal.reflection ?? '');
+    setFinishingGoalId(goal.id);
+    setMenuId(null);
+  };
+  const confirmFinish = (goal: Goal) => {
+    onUpdate(goal.id, {
+      status: 'completed',
+      finishedAt: goal.finishedAt ?? new Date().toISOString(),
+      reflection: reflectionDraft.trim() || undefined,
+    });
+    setFinishingGoalId(null);
+  };
+  const isEffectivelyComplete = (goal: Goal) =>
+    goal.status === 'completed' ||
+    (goal.kind === 'naturalRhythm' && naturalRhythmSnapshot(goal, entries, now).complete);
+  const active = goals.filter((item) => item.status === 'active' && !isEffectivelyComplete(item)).length,
+    completed = goals.filter(isEffectivelyComplete).length,
+    queued = goals.filter((item) => item.status === 'queued').length,
     paused = goals.filter((item) => item.status === 'paused').length;
   const unit = (goal: Goal) =>
     goal.metric === 'minutes'
@@ -4513,6 +5316,7 @@ function GoalsView({
         : 'сесій';
   const statusFor = (goal: Goal, value: number) => {
     if (goal.status === 'paused') return { tone: 'paused', label: 'На паузі' };
+    if (goal.status === 'queued') return { tone: 'queued', label: 'На потім' };
     if (goal.status === 'completed')
       return { tone: 'done', label: 'Завершено' };
     const reached =
@@ -4527,22 +5331,192 @@ function GoalsView({
           label: goal.rule === 'atMost' ? 'Ліміт перевищено' : 'У процесі',
         };
   };
+  const renderProgramOutcome = (goal: Goal) => {
+    const comparison = goalComparison(goal, entries, now);
+    const finishing = finishingGoalId === goal.id;
+    const isProgram = goal.kind === 'naturalRhythm' || goal.kind === 'guidedProgram';
+    if (!finishing && goal.status !== 'completed') return null;
+    const value = (
+      metric: 'count' | 'avgDuration' | 'avgRating' | 'avgEdgingCycles' | 'avgControlRating',
+      period: 'before' | 'during',
+    ) => {
+      const result = comparison[period][metric];
+      if (result === null) return '—';
+      if (metric === 'avgDuration') return `${result} хв`;
+      if (metric === 'avgRating') return `${result.toFixed(1)}/5`;
+      if (metric === 'avgEdgingCycles') return result.toFixed(1);
+      if (metric === 'avgControlRating') return `${result.toFixed(1)}/5`;
+      return String(result);
+    };
+
+    return (
+      <section
+        className={`program-outcome ${finishing ? 'is-editing' : ''}`}
+        aria-labelledby={`program-outcome-${goal.id}`}
+      >
+        <div className="program-outcome-head">
+          <div>
+            <span className="section-kicker">
+              {finishing ? `Завершення ${isProgram ? 'програми' : 'цілі'}` : 'Твій підсумок'}
+            </span>
+            <h4 id={`program-outcome-${goal.id}`}>
+              {finishing ? 'Що змінилося за цей час?' : `Результат ${isProgram ? 'програми' : 'цілі'}`}
+            </h4>
+          </div>
+          {!finishing && (
+            <span className="goal-status done"><Check /> Завершено</span>
+          )}
+        </div>
+        <p className="program-outcome-copy">
+          Беремо {comparison.windowDays} днів до старту та всі записи під час
+          {isProgram ? 'програми' : 'цілі'}. Це спостереження, а не оцінка успіху.
+        </p>
+        <div
+          className="program-comparison"
+          role="group"
+          aria-label="Порівняння результатів програми"
+        >
+          <div className="program-comparison-head">
+            <span>Показник</span><strong>До</strong><strong>Під час</strong>
+          </div>
+          <div><span>Записи</span><strong>{value('count', 'before')}</strong><strong>{value('count', 'during')}</strong></div>
+          <div><span>Середній час</span><strong>{value('avgDuration', 'before')}</strong><strong>{value('avgDuration', 'during')}</strong></div>
+          <div><span>Середня оцінка</span><strong>{value('avgRating', 'before')}</strong><strong>{value('avgRating', 'during')}</strong></div>
+          {goal.category === 'Edging' && (
+            <>
+              <div><span>Підходи до межі</span><strong>{value('avgEdgingCycles', 'before')}</strong><strong>{value('avgEdgingCycles', 'during')}</strong></div>
+              <div><span>Контроль темпу</span><strong>{value('avgControlRating', 'before')}</strong><strong>{value('avgControlRating', 'during')}</strong></div>
+            </>
+          )}
+        </div>
+        {finishing ? (
+          <div className="program-reflection-form">
+            <label htmlFor={`program-reflection-${goal.id}`}>
+              Моє спостереження <small>необов’язково</small>
+            </label>
+            <textarea
+              id={`program-reflection-${goal.id}`}
+              value={reflectionDraft}
+              onChange={(event) => setReflectionDraft(event.target.value)}
+              placeholder="Наприклад: що стало комфортнішим, що не підійшло або що хочу спробувати далі"
+              maxLength={600}
+            />
+            <div className="program-outcome-actions">
+              <button type="button" onClick={() => setFinishingGoalId(null)}>
+                {goal.status === 'completed' ? 'Скасувати' : `Продовжити ${isProgram ? 'програму' : 'ціль'}`}
+              </button>
+              <button type="button" className="primary" onClick={() => confirmFinish(goal)}>
+                <Check /> Завершити й зберегти
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="program-reflection-saved">
+            <span>Моє спостереження</span>
+            <p>{goal.reflection || 'Спостереження не додано.'}</p>
+            <button type="button" onClick={() => beginFinish(goal)}>
+              <Edit3 /> {goal.reflection ? 'Редагувати' : 'Додати спостереження'}
+            </button>
+          </div>
+        )}
+      </section>
+    );
+  };
   return (
-    <section className="goals-page">
+    <section className={`goals-page ${selected ? 'program-space-open' : ''}`}>
+      {selected && (
+        <div className="program-space-nav">
+          <button onClick={() => { setSelectedId(null); setFinishingGoalId(null); }}><ArrowLeft /> {selected.kind === 'naturalRhythm' || selected.kind === 'guidedProgram' ? 'Усі програми' : 'Усі цілі'}</button>
+          <span>Статистика лише {selected.kind === 'naturalRhythm' || selected.kind === 'guidedProgram' ? 'цієї програми' : 'цієї цілі'}</span>
+        </div>
+      )}
       <section className="goals-lead">
         <div>
-          <span className="section-kicker">Наміри замість тиску</span>
-          <h2>Цілі, які працюють разом із твоїм ритмом.</h2>
+          <span className="section-kicker">Програми та власні цілі</span>
+          <h2>Обери маршрут або створи свій орієнтир.</h2>
           <p>
-            Обери бажану зміну, кількість і період. Ми самі порахуємо прогрес та
-            покажемо контекст.
+            Програми пояснюють, що робити крок за кроком. Власні цілі лише
+            відстежують обраний тобою показник.
           </p>
         </div>
         <Button onClick={openGoal}>
           <Plus />
-          Створити ціль
+          Додати
         </Button>
       </section>
+      {activeProgram && activeProgramSnapshot ? (
+        <section className="active-program-banner">
+          <div className="active-program-head">
+            <span className="program-mark"><Target /></span>
+            <div>
+              <span className="section-kicker">Активна програма</span>
+              <h3>{activeProgram.title}</h3>
+            </div>
+            <span className="program-day active-program-state"><Check /> Активна · день {activeProgramSnapshot.elapsedDays} із {activeProgramSnapshot.durationDays}</span>
+          </div>
+          <p>{activeProgramSnapshot.insight}</p>
+          <div className="active-program-footer">
+            <div>
+              <span style={{ width: `${activeProgramSnapshot.progress}%` }} />
+            </div>
+            <button onClick={() => setSelectedId(activeProgram.id)}>
+              {activeProgramSnapshot.complete ? 'Переглянути підсумок' : 'Відкрити програму'}
+              <ChevronRight />
+            </button>
+          </div>
+        </section>
+      ) : activeMetricGoal && activeMetricGuidance ? (
+        <section className="active-program-banner active-metric-banner">
+          <div className="active-program-head">
+            <span className="program-mark"><Target /></span>
+            <div>
+              <span className="section-kicker">{activeMetricGoal.kind === 'guidedProgram' ? 'Активна програма' : 'Активна ціль'} · {activeMetricGuidance.label}</span>
+              <h3>{activeMetricGoal.title}</h3>
+            </div>
+            <span className="program-day active-program-state"><Check /> Активна</span>
+          </div>
+          <p><strong>{activeMetricGuidance.nextTitle}.</strong> {activeMetricGuidance.nextText}</p>
+          <div className="active-program-footer">
+            <div><span style={{ width: `${Math.min(100, Math.round((calculate(activeMetricGoal).value / activeMetricGoal.target) * 100))}%` }} /></div>
+            <button onClick={() => setSelectedId(activeMetricGoal.id)}>Відкрити {activeMetricGoal.kind === 'guidedProgram' ? 'програму' : 'ціль'} <ChevronRight /></button>
+          </div>
+        </section>
+      ) : (
+        <section className="program-starter">
+          <div className="program-starter-copy">
+            <span className="program-recommended">Рекомендовано для початку</span>
+            <h3>Мій природний ритм</h3>
+            <p>
+              Записуй сесії як зазвичай. Метрика покаже частоту, найчастіший
+              час і перші закономірності — без плану за кількістю.
+            </p>
+            <ul>
+              <li><Check /> Без необхідності щось змінювати</li>
+              <li><Check /> Усі розрахунки залишаються на пристрої</li>
+            </ul>
+          </div>
+          <div className="program-starter-action">
+            <span>Скільки спостерігати?</span>
+            <div>
+              {([7, 14, 30] as const).map((days) => (
+                <button
+                  key={days}
+                  className={programDays === days ? 'selected' : ''}
+                  onClick={() => setProgramDays(days)}
+                  aria-pressed={programDays === days}
+                >
+                  <strong>{days}</strong>
+                  <small>днів</small>
+                </button>
+              ))}
+            </div>
+            <Button onClick={() => onStartProgram(programDays)}>
+              Почати програму
+              <ChevronRight />
+            </Button>
+          </div>
+        </section>
+      )}
       <div className="goal-overview">
         <article>
           <Target />
@@ -4559,17 +5533,65 @@ function GoalsView({
         <article>
           <Pause />
           <span>
-            <strong>{paused}</strong>на паузі
+            <strong>{queued}</strong>на потім
           </span>
         </article>
         <p>
           <ShieldCheck />
-          Прогрес — це інформація, а не оцінка тебе.
+          Одночасно активний лише один орієнтир. На паузі: {paused}.
         </p>
+      </div>
+      <div className="goal-library-switch" role="tablist" aria-label="Програми та власні цілі">
+        <button
+          role="tab"
+          aria-selected={librarySection === 'programs'}
+          className={librarySection === 'programs' ? 'selected' : ''}
+          onClick={() => setLibrarySection('programs')}
+        >
+          <Sparkles /> Програми <span>{programCount}</span>
+        </button>
+        <button
+          role="tab"
+          aria-selected={librarySection === 'goals'}
+          className={librarySection === 'goals' ? 'selected' : ''}
+          onClick={() => setLibrarySection('goals')}
+        >
+          <Target /> Власні цілі <span>{customGoalCount}</span>
+        </button>
       </div>
       <div className="goals-workspace">
         <section className="goals-grid">
-          {goals.map((goal, index) => {
+          {goals
+            .filter((goal) => librarySection === 'programs' && goal.kind === 'naturalRhythm' && goal.id !== activeProgram?.id)
+            .map((goal) => {
+              const snapshot = naturalRhythmSnapshot(goal, entries, now);
+              const programDone = isEffectivelyComplete(goal);
+              return (
+                <article className={`goal-card-large ${programDone ? 'done' : goal.status} ${!programDone ? 'has-state-control' : ''} ${selectedId === goal.id ? 'selected' : ''}`} key={goal.id}>
+                  <button aria-label={`Відкрити підсумок програми ${goal.title}`} className="goal-card-main" onClick={() => setSelectedId(goal.id)}>
+                    <div className="goal-card-top">
+                      <span className="goal-symbol tone-2"><Target /></span>
+                      <div><span>Особиста програма</span><h3>{goal.title}</h3></div>
+                      <span className={`goal-status ${programDone ? 'done' : goal.status}`}>
+                        {programDone ? 'Підсумок готовий' : goal.status === 'queued' ? 'На потім' : 'На паузі'}
+                      </span>
+                    </div>
+                    <div className="goal-big-number"><strong>{snapshot.source.length}</strong><span>записів за {snapshot.durationDays} днів</span></div>
+                    <div className="goal-line"><span style={{ width: `${programDone ? 100 : snapshot.progress}%` }} /></div>
+                    <div className="goal-card-bottom"><span>{snapshot.dominantPart ? `Найчастіше · ${snapshot.dominantPart}` : 'Даних недостатньо'}</span><span>{programDone ? 'Переглянути висновок' : 'Збережено'}</span></div>
+                  </button>
+                  {!programDone && (
+                    <button className="goal-card-activate" onClick={() => requestActivation(goal)}>
+                      <Play /> Активувати
+                    </button>
+                  )}
+                </article>
+              );
+            })}
+          {goals.filter((goal) =>
+            goal.kind !== 'naturalRhythm' &&
+            (librarySection === 'programs' ? goal.kind === 'guidedProgram' : goal.kind !== 'guidedProgram')
+          ).map((goal, index) => {
             const { value } = calculate(goal),
               display = goal.metric === 'rating' ? value.toFixed(1) : value;
             const raw = Math.round((value / goal.target) * 100),
@@ -4577,10 +5599,11 @@ function GoalsView({
               state = statusFor(goal, value);
             return (
               <article
-                className={`goal-card-large ${state.tone} ${selectedId === goal.id ? 'selected' : ''}`}
+                className={`goal-card-large ${state.tone} ${goal.status === 'active' ? 'is-active' : ''} ${goal.status !== 'completed' ? 'has-state-control' : ''} ${selectedId === goal.id ? 'selected' : ''}`}
                 key={goal.id}
               >
                 <button
+                  aria-label={`Відкрити ${goal.kind === 'guidedProgram' ? 'програму' : 'ціль'} ${goal.title}`}
                   className="goal-card-main"
                   onClick={() =>
                     setSelectedId(selectedId === goal.id ? null : goal.id)
@@ -4592,13 +5615,14 @@ function GoalsView({
                     </span>
                     <div>
                       <span>
-                        {goal.rule === 'atLeast' ? 'Щонайменше' : 'Не частіше'}{' '}
+                        {goal.kind === 'guidedProgram' ? 'Готова програма' : goal.rule === 'atLeast' ? 'Власна ціль' : 'Власна межа'}{' '}
                         · {periodInfo[goal.period].label}
                       </span>
                       <h3>{goal.title}</h3>
                     </div>
-                    <span className={`goal-status ${state.tone}`}>
-                      {state.label}
+                    <span className={`goal-status ${goal.status === 'active' ? 'active' : state.tone}`}>
+                      {goal.status === 'active' && <Check />}
+                      {goal.status === 'active' ? 'Активна' : state.label}
                     </span>
                   </div>
                   <div className="goal-big-number">
@@ -4631,6 +5655,13 @@ function GoalsView({
                     </span>
                   </div>
                 </button>
+                {goal.status === 'active' ? (
+                  <span className="goal-card-active-check"><Check /> Зараз активна</span>
+                ) : goal.status !== 'completed' ? (
+                  <button className="goal-card-activate" onClick={() => requestActivation(goal)}>
+                    <Play /> Активувати
+                  </button>
+                ) : null}
                 <button
                   className="goal-more"
                   onClick={() => setMenuId(menuId === goal.id ? null : goal.id)}
@@ -4649,28 +5680,22 @@ function GoalsView({
                       <Edit3 />
                       Редагувати
                     </button>
+                    {goal.status === 'active' ? (
+                      <button onClick={() => { onUpdate(goal.id, { status: 'paused', finishedAt: new Date().toISOString() }); setMenuId(null); }}>
+                        <Pause /> Поставити на паузу
+                      </button>
+                    ) : goal.status !== 'completed' ? (
+                      <button onClick={() => { requestActivation(goal); setMenuId(null); }}>
+                        <Play /> Активувати
+                      </button>
+                    ) : null}
                     <button
                       onClick={() => {
-                        onUpdate(goal.id, {
-                          status:
-                            goal.status === 'paused' ? 'active' : 'paused',
-                        });
-                        setMenuId(null);
-                      }}
-                    >
-                      {goal.status === 'paused' ? <Play /> : <Pause />}
-                      {goal.status === 'paused'
-                        ? 'Продовжити'
-                        : 'Поставити на паузу'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        onUpdate(goal.id, { status: 'completed' });
-                        setMenuId(null);
+                        beginFinish(goal);
                       }}
                     >
                       <Check />
-                      Завершити
+                      Завершити {goal.kind === 'guidedProgram' ? 'програму' : 'ціль'}
                     </button>
                     <button
                       className="danger"
@@ -4684,25 +5709,155 @@ function GoalsView({
               </article>
             );
           })}
-          <button className="new-goal-card" onClick={openGoal}>
-            <span>
-              <Plus />
-            </span>
-            <strong>Нова особиста ціль</strong>
-            <small>Створи власний орієнтир</small>
-          </button>
+          {librarySection === 'goals' && (
+            <button className="new-goal-card" onClick={openGoal}>
+              <span><Plus /></span>
+              <strong>Нова власна ціль</strong>
+              <small>Створи простий числовий орієнтир</small>
+            </button>
+          )}
         </section>
         {selected &&
           (() => {
-            const current = calculate(selected),
-              previous = calculate(selected, true),
-              delta = current.value - previous.value,
-              state = statusFor(selected, current.value);
+            if (selected.kind === 'naturalRhythm') {
+              const snapshot = naturalRhythmSnapshot(selected, entries, now);
+              return (
+                <section className="goal-detail program-detail program-space-detail">
+                  <div className="goal-detail-head">
+                    <div>
+                      <span className="section-kicker">Простір програми</span>
+                      <h3>{selected.title}</h3>
+                      <p>
+                        Спостерігай за звичним ритмом. Тут немає потрібної
+                        кількості сесій і нічого не потрібно наздоганяти.
+                      </p>
+                    </div>
+                    <div>
+                      <span className={`goal-status ${snapshot.complete ? 'done' : 'good'}`}>
+                        {snapshot.complete ? 'Підсумок готовий' : snapshot.confidence}
+                      </span>
+                      {selected.status !== 'active' && !snapshot.complete && (
+                        <button className="goal-activate-button" onClick={() => requestActivation(selected)}>
+                          <Play /> Активувати
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="program-observation">
+                    <span>Поточне спостереження</span>
+                    <strong>{snapshot.insight}</strong>
+                  </div>
+                  <h4 className="program-section-title">Статистика програми</h4>
+                  <div className="goal-detail-kpis">
+                    <article>
+                      <span>Період</span>
+                      <strong>{snapshot.elapsedDays}<small> із {snapshot.durationDays} днів</small></strong>
+                    </article>
+                    <article>
+                      <span>Записи</span>
+                      <strong>{snapshot.source.length}<small> у {snapshot.uniqueDays} днях</small></strong>
+                    </article>
+                    <article>
+                      <span>Найчастіше</span>
+                      <strong>{snapshot.dominantPart ?? 'Ще рано'}</strong>
+                    </article>
+                  </div>
+                  <p className="program-scope-caption">
+                    <ShieldCheck /> Тут враховано лише записи, зроблені від початку цієї програми до її завершення або паузи.
+                  </p>
+                  {snapshot.source.length > 0 && (
+                    <div className="program-summary-grid">
+                      <article>
+                        <span>Середня тривалість</span>
+                        <strong>{snapshot.avgDuration} хв</strong>
+                      </article>
+                      <article>
+                        <span>Середня оцінка</span>
+                        <strong>{snapshot.avgRating.toFixed(1)}/5</strong>
+                      </article>
+                    </div>
+                  )}
+                  <div className="program-next-step">
+                    <Sparkles />
+                    <div>
+                      <strong>{snapshot.complete ? 'Що далі' : 'Наступний крок'}</strong>
+                      <span>
+                        {snapshot.complete
+                          ? snapshot.source.length >= 3
+                            ? `Перевір точніше, чи справді ${snapshot.dominantPart?.toLowerCase() ?? 'цей час'} пов’язаний із кращим досвідом.`
+                            : 'Можна продовжити спостереження ще на 7 днів або завершити без нової програми.'
+                          : 'Продовжуй у звичному ритмі. Якщо буде сесія — додай її, і програма оновиться автоматично.'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="goal-linked">
+                    <div>
+                      <span className="section-kicker">Записи програми</span>
+                      <strong>{snapshot.source.length}</strong>
+                    </div>
+                    {snapshot.source.length ? (
+                      <div>
+                        {snapshot.source.slice(0, 5).map((item) => (
+                          <article key={item.id}>
+                            <span className="goal-linked-icon"><Heart /></span>
+                            <div>
+                              <strong>{item.type}</strong>
+                              <small>{formatDay(item.createdAt)} · {dayPartForEntry(item)} · {item.duration} хв</small>
+                            </div>
+                            <b>{item.rating}/5</b>
+                          </article>
+                        ))}
+                      </div>
+                    ) : (
+                      <p>Перший новий запис автоматично з’явиться тут.</p>
+                    )}
+                  </div>
+                  {renderProgramOutcome(selected)}
+                  {selected.status !== 'completed' && finishingGoalId !== selected.id && (
+                    <button
+                      className="program-finish-button"
+                      onClick={() => beginFinish(selected)}
+                    >
+                      Завершити й підбити підсумок
+                    </button>
+                  )}
+                </section>
+              );
+            }
+            const guidance = metricGoalGuidance(selected, entries, now);
+            const scopedEntries = guidance.source;
+            const scopedMinutes = scopedEntries.reduce((sum, entry) => sum + entry.duration, 0);
+            const scopedRating = scopedEntries.length
+              ? scopedEntries.reduce((sum, entry) => sum + entry.rating, 0) / scopedEntries.length
+              : 0;
+            const edgingCycleEntries = scopedEntries.filter((entry) => entry.edgingCycles !== undefined);
+            const controlEntries = scopedEntries.filter((entry) => entry.controlRating !== undefined);
+            const averageEdgingCycles = edgingCycleEntries.length
+              ? edgingCycleEntries.reduce((sum, entry) => sum + (entry.edgingCycles ?? 0), 0) / edgingCycleEntries.length
+              : null;
+            const averageControlRating = controlEntries.length
+              ? controlEntries.reduce((sum, entry) => sum + (entry.controlRating ?? 0), 0) / controlEntries.length
+              : null;
+            const scopedMoodChange = scopedEntries.length
+              ? scopedEntries.reduce((sum, entry) => sum + (entry.mood - (entry.moodBefore ?? entry.mood)), 0) / scopedEntries.length
+              : 0;
+            const scopedValue = selected.metric === 'minutes'
+              ? scopedMinutes
+              : selected.metric === 'rating'
+                ? scopedRating
+                : scopedEntries.length;
+            const state = statusFor(selected, scopedValue);
+            const dayPartCounts = scopedEntries.reduce((result, entry) => {
+              const part = dayPartForEntry(entry);
+              result.set(part, (result.get(part) ?? 0) + 1);
+              return result;
+            }, new Map<string, number>());
+            const dominantDayPart = [...dayPartCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'Ще немає даних';
             return (
-              <section className="goal-detail">
+              <section className="goal-detail program-space-detail">
                 <div className="goal-detail-head">
                   <div>
-                    <span className="section-kicker">Деталі цілі</span>
+                    <span className="section-kicker">{selected.kind === 'guidedProgram' ? 'Простір програми' : 'Простір власної цілі'}</span>
                     <h3>{selected.title}</h3>
                     <p>
                       {selected.rule === 'atLeast'
@@ -4713,51 +5868,93 @@ function GoalsView({
                     </p>
                   </div>
                   <div>
-                    <span className={`goal-status ${state.tone}`}>
-                      {state.label}
+                    <span className={`goal-status ${selected.status === 'active' ? 'active' : state.tone}`}>
+                      {selected.status === 'active' && <Check />}
+                      {selected.status === 'active' ? 'Активна' : state.label}
                     </span>
+                    {selected.status !== 'active' && selected.status !== 'completed' && (
+                      <button className="goal-activate-button" onClick={() => requestActivation(selected)}>
+                        <Play /> Активувати
+                      </button>
+                    )}
                     <button onClick={() => onEdit(selected)}>
                       <Edit3 />
                       Редагувати
                     </button>
                   </div>
                 </div>
+                {selected.status !== 'active' && selected.status !== 'completed' && (
+                  <p className="goal-activation-note">
+                    <Pause /> Ціль не впливає на поточний маршрут. Після активації чинна програма перейде на паузу.
+                  </p>
+                )}
+                <div className="goal-conversation">
+                  <div className="goal-conversation-next">
+                    <span>Що робити зараз</span>
+                    <strong>{selected.status === 'active' ? guidance.nextTitle : 'Активуй, коли будеш готовий'}</strong>
+                    <p>{selected.status === 'active' ? guidance.nextText : 'До активації нічого виконувати не потрібно. Ціль спокійно чекатиме у твоєму списку.'}</p>
+                  </div>
+                  <div className="goal-conversation-purpose">
+                    <span>{guidance.label}</span>
+                    <strong>Навіщо ця програма</strong>
+                    <p>{guidance.why}</p>
+                  </div>
+                  <ol className="goal-journey" aria-label="Шлях до цілі">
+                    {guidance.steps.map((step, index) => (
+                      <li
+                        key={step}
+                        className={index < guidance.stage ? 'done' : index === guidance.stage ? 'current' : ''}
+                      >
+                        <span>{index < guidance.stage ? <Check /> : index + 1}</span>
+                        <small>{step}</small>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+                <h4 className="program-section-title">Статистика програми</h4>
                 <div className="goal-detail-kpis">
                   <article>
-                    <span>Поточне значення</span>
-                    <strong>
-                      {selected.metric === 'rating'
-                        ? current.value.toFixed(1)
-                        : current.value}
-                      <small> {unit(selected)}</small>
-                    </strong>
+                    <span>Записи програми</span>
+                    <strong>{scopedEntries.length}<small> лише в цьому маршруті</small></strong>
                   </article>
                   <article>
-                    <span>Попередній період</span>
-                    <strong>
-                      {selected.metric === 'rating'
-                        ? previous.value.toFixed(1)
-                        : previous.value}
-                      <small> {unit(selected)}</small>
-                    </strong>
+                    <span>Час у програмі</span>
+                    <strong>{scopedMinutes}<small> хв загалом</small></strong>
                   </article>
                   <article>
-                    <span>Зміна</span>
-                    <strong className={delta >= 0 ? 'up' : 'down'}>
-                      {delta > 0 ? '+' : ''}
-                      {selected.metric === 'rating' ? delta.toFixed(1) : delta}
-                      <small> {unit(selected)}</small>
-                    </strong>
+                    <span>Середня оцінка</span>
+                    <strong>{scopedEntries.length ? scopedRating.toFixed(1) : '—'}<small> {scopedEntries.length ? '/ 5' : 'після першого запису'}</small></strong>
+                  </article>
+                  <article>
+                    <span>Найчастіший час</span>
+                    <strong>{dominantDayPart}<small>{scopedEntries.length ? ` · настрій ${scopedMoodChange >= 0 ? '+' : ''}${scopedMoodChange.toFixed(1)}` : ''}</small></strong>
                   </article>
                 </div>
+                {selected.category === 'Edging' && (
+                  <div className="program-edging-metrics">
+                    <article>
+                      <span>Підходи до межі за сесію</span>
+                      <strong>{averageEdgingCycles === null ? '—' : averageEdgingCycles.toFixed(1)}</strong>
+                      <small>{averageEdgingCycles === null ? 'З’явиться в нових Edging-записах' : 'у середньому'}</small>
+                    </article>
+                    <article>
+                      <span>Контроль темпу</span>
+                      <strong>{averageControlRating === null ? '—' : `${averageControlRating.toFixed(1)}/5`}</strong>
+                      <small>{averageControlRating === null ? 'З’явиться після оцінки' : 'наскільки легко змінювався темп'}</small>
+                    </article>
+                  </div>
+                )}
+                <p className="program-scope-caption">
+                  <ShieldCheck /> Загальна статистика не домішується: тут лише записи від активації {selected.kind === 'guidedProgram' ? 'цієї програми' : 'цієї цілі'} до завершення або паузи.
+                </p>
                 <div className="goal-linked">
                   <div>
-                    <span className="section-kicker">Пов’язані записи</span>
-                    <strong>{current.source.length} за поточний період</strong>
+                    <span className="section-kicker">Записи цієї програми</span>
+                    <strong>{scopedEntries.length} у маршруті</strong>
                   </div>
-                  {current.source.length ? (
+                  {scopedEntries.length ? (
                     <div>
-                      {current.source.slice(0, 5).map((item) => (
+                      {scopedEntries.slice(0, 5).map((item) => (
                         <article key={item.id}>
                           <span className="goal-linked-icon">
                             <Heart />
@@ -4777,15 +5974,44 @@ function GoalsView({
                     </div>
                   ) : (
                     <p>
-                      Щойно з’явиться відповідна сесія, вона автоматично
-                      потрапить сюди.
+                      Тут з’явиться перший запис, зроблений після активації цієї програми та відповідний її умовам.
                     </p>
                   )}
                 </div>
+                {renderProgramOutcome(selected)}
+                {selected.status !== 'completed' && finishingGoalId !== selected.id && (
+                  <button className="program-finish-button" onClick={() => beginFinish(selected)}>
+                    Завершити {selected.kind === 'guidedProgram' ? 'програму' : 'ціль'} й підбити підсумок
+                  </button>
+                )}
               </section>
             );
           })()}
       </div>
+      <AlertDialog open={Boolean(pendingActivationGoal)} onOpenChange={(open) => { if (!open) setPendingActivationId(null); }}>
+        <AlertDialogContent className="goal-activation-dialog">
+          <AlertDialogHeader>
+            <AlertDialogMedia><Pause /></AlertDialogMedia>
+            <AlertDialogTitle>Активувати {pendingIsProgram ? 'програму' : 'ціль'} «{pendingActivationGoal?.title}»?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Зараз активний орієнтир «{activeGoal?.title}». Після підтвердження він перейде на паузу, а {pendingIsProgram ? 'нова програма' : 'нова ціль'} почне рахувати прогрес із цього моменту.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Залишити як є</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!pendingActivationGoal) return;
+                onActivate(pendingActivationGoal.id);
+                setSelectedId(pendingActivationGoal.id);
+                setPendingActivationId(null);
+              }}
+            >
+              <Play /> Активувати {pendingIsProgram ? 'програму' : 'ціль'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }
@@ -5008,7 +6234,7 @@ function InsightsView({
       .slice(0, 5);
   };
   const contextGroups = [
-    { label: 'Настрій', title: 'Твій стан', icon: Heart, items: summarizeContext((entry) => entry.moods) },
+    { label: 'Настрій', title: 'Найчастіший стан', icon: Heart, items: summarizeContext((entry) => entry.moods) },
     { label: 'Місця', title: 'Де саме', icon: MapPin, items: summarizeContext((entry) => entry.places) },
     { label: 'Локації', title: 'Загальний контекст', icon: LocateFixed, items: summarizeContext((entry) => entry.locations) },
     { label: 'Пози', title: 'Що обираєш', icon: PersonStanding, items: summarizeContext((entry) => entry.positions) },
@@ -5862,29 +7088,6 @@ function InsightsView({
             </div>
           )}
         </div>
-      </section>
-      <section className="analytics-card mood-shift mood-summary-section">
-        <div>
-          <span className="section-kicker">Настрій</span>
-          <h3>Найчастіший стан</h3>
-        </div>
-        {contextGroups[0].items[0] ? (
-          <div className="mood-shift-summary">
-            <strong>{contextGroups[0].items[0].label}</strong>
-            <span>
-              {contextGroups[0].items[0].count}{' '}
-              {contextGroups[0].items[0].count === 1
-                ? 'сесія'
-                : contextGroups[0].items[0].count < 5
-                  ? 'сесії'
-                  : 'сесій'}
-              <i />
-              середня оцінка {contextGroups[0].items[0].rating.toFixed(1)}/5
-            </span>
-          </div>
-        ) : (
-          <p>Обери настрій у новому записі, щоб побачити патерн.</p>
-        )}
       </section>
       </div>
       )}
